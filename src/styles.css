@@ -1,0 +1,431 @@
+:root {
+  --color-bg: #111312;
+  --color-text-main: #f6f1df;
+  --color-text-muted: rgba(246, 241, 223, 0.65);
+  --color-gold: #f5ba49;
+  --color-cyan: #48baa7;
+  --color-card-bg: rgba(18, 20, 22, 0.82);
+  --color-card-border: rgba(246, 241, 223, 0.16);
+  --color-card-border-active: #f5ba49;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  background-color: var(--color-bg);
+}
+
+#app {
+  position: relative;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(245, 186, 73, 0.08), transparent 38rem),
+    radial-gradient(circle at 80% 85%, rgba(72, 186, 167, 0.06), transparent 28rem),
+    var(--color-bg);
+}
+
+#game-canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  outline: none;
+  touch-action: none;
+}
+
+/* 顶部状态栏 */
+.game-header {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  left: max(16px, env(safe-area-inset-left));
+  right: max(16px, env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* 角色状态卡片 */
+.player-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--color-text-main);
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  pointer-events: auto;
+}
+
+.player-card.active {
+  border-color: var(--color-card-border-active);
+  box-shadow: 0 0 16px rgba(245, 186, 73, 0.32);
+  transform: translateY(-1px);
+}
+
+.piece-indicator {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.piece-black {
+  background: radial-gradient(circle at 35% 35%, #4a4a4a, #141414 75%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.piece-white {
+  background: radial-gradient(circle at 35% 35%, #ffffff, #dcd7cb 80%);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+/* 状态信息卡片 */
+.status-panel {
+  flex: 1;
+  max-width: 320px;
+  min-width: 180px;
+  text-align: center;
+  padding: 6px 14px;
+  border-radius: 12px;
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: auto;
+}
+
+.status-primary {
+  color: var(--color-text-main);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.status-secondary {
+  color: var(--color-text-muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 按钮通用 */
+.btn-restart {
+  padding: 8px 16px;
+  min-height: 38px;
+  border-radius: 9999px;
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--color-text-main);
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-restart:hover {
+  background: rgba(35, 38, 42, 0.92);
+  border-color: var(--color-gold);
+  color: #ffffff;
+}
+
+.btn-restart:active {
+  transform: scale(0.96);
+}
+
+/* 终局居中 Overlay */
+.game-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 14, 0.68);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 100;
+  padding: 20px;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.game-overlay.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.overlay-dialog {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 36px;
+  min-width: 280px;
+  max-width: 400px;
+  background: rgba(22, 25, 29, 0.94);
+  border: 1px solid rgba(246, 241, 223, 0.2);
+  border-radius: 20px;
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.6),
+    0 0 28px rgba(245, 186, 73, 0.15);
+  animation: dialogPop 0.24s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+@keyframes dialogPop {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.overlay-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: rgba(245, 186, 73, 0.16);
+  border: 1px solid rgba(245, 186, 73, 0.35);
+  color: var(--color-gold);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+
+.overlay-title {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+}
+
+.overlay-desc {
+  margin: 10px 0 24px;
+  font-size: 0.92rem;
+  color: var(--color-text-muted);
+}
+
+.overlay-actions {
+  width: 100%;
+}
+
+.btn-primary {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 24px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f5ba49, #e59d24);
+  color: #111312;
+  font-size: 1rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(245, 186, 73, 0.35);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.btn-primary:hover {
+  box-shadow: 0 6px 20px rgba(245, 186, 73, 0.5);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
+}
+
+/* 终局结果差异化 */
+.overlay-title {
+  animation: titleSlam 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.3);
+}
+
+@keyframes titleSlam {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+.result-win .overlay-dialog {
+  border-color: rgba(245, 186, 73, 0.65);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 48px rgba(245, 186, 73, 0.4);
+}
+
+.result-win .overlay-title {
+  background: linear-gradient(135deg, #ffd98a, #f5ba49, #e8a13a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.result-lose .overlay-dialog {
+  border-color: rgba(232, 115, 74, 0.55);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 36px rgba(232, 115, 74, 0.3);
+  animation: dialogPop 0.24s cubic-bezier(0.18, 0.89, 0.32, 1.28), dialogShake 0.5s 0.24s ease-in-out;
+}
+
+.result-lose .overlay-title {
+  color: #e8734a;
+}
+
+.result-lose .overlay-badge {
+  background: rgba(232, 115, 74, 0.16);
+  border-color: rgba(232, 115, 74, 0.4);
+  color: #e8734a;
+}
+
+.result-draw .overlay-dialog {
+  border-color: rgba(246, 241, 223, 0.4);
+}
+
+@keyframes dialogShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+
+/* 终局全屏闪光 */
+.end-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 90;
+  opacity: 0;
+  animation: endFlash 0.8s ease-out forwards;
+}
+
+.end-flash-win {
+  background: radial-gradient(circle at 50% 45%, rgba(245, 186, 73, 0.55), rgba(245, 186, 73, 0.12) 55%, transparent 78%);
+}
+
+.end-flash-lose {
+  background: radial-gradient(circle at 50% 45%, rgba(232, 115, 74, 0.5), rgba(232, 115, 74, 0.1) 55%, transparent 78%);
+}
+
+.end-flash-draw {
+  background: radial-gradient(circle at 50% 45%, rgba(246, 241, 223, 0.35), transparent 70%);
+}
+
+@keyframes endFlash {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* 操作提示（360° 视角） */
+.camera-hint {
+  position: absolute;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 24px);
+  padding: 6px 14px;
+  border-radius: 9999px;
+  background: rgba(18, 20, 22, 0.7);
+  border: 1px solid var(--color-card-border);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 响应式适配 */
+@media (max-width: 680px) {
+  .game-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .player-card {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+  }
+
+  .status-panel {
+    order: 3;
+    width: 100%;
+    max-width: 100%;
+    margin-top: 2px;
+    padding: 6px 10px;
+  }
+
+  .status-primary {
+    font-size: 0.86rem;
+  }
+
+  .status-secondary {
+    font-size: 0.72rem;
+  }
+
+  .btn-restart {
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    min-height: 34px;
+  }
+
+  .overlay-dialog {
+    padding: 24px 20px;
+  }
+
+  .overlay-title {
+    font-size: 1.6rem;
+  }
+
+  .camera-hint {
+    font-size: 0.66rem;
+    padding: 5px 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+  }
+}

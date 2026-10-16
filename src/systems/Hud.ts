@@ -34,10 +34,6 @@ export class Hud {
     this.subStatus.textContent = '正在计算最佳步骤';
   }
 
-  setMoveResult(text: string): void {
-    this.subStatus.textContent = text;
-  }
-
   showGameOver(winner: 'human' | 'ai' | 'draw', movesCount: number): void {
     this.playerHuman.classList.remove('active');
     this.playerAi.classList.remove('active');

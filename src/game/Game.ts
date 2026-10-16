@@ -373,6 +373,18 @@ export class Game {
       }
 
       const { row, col, key, confidence } = choice;
+      // 校验 AI 返回坐标合法性，非法时抛错走下方 catch 兜底（交还回合给玩家）
+      const size = this.board.length;
+      if (
+        !Number.isInteger(row) ||
+        !Number.isInteger(col) ||
+        row < 0 ||
+        row >= size ||
+        col < 0 ||
+        col >= size
+      ) {
+        throw new Error(`AI 返回非法坐标: (${row}, ${col})`);
+      }
       this.board[row][col] = 2;
       this.moves += 1;
       this.boardView.placePiece(row, col, 2, this.reducedMotion);

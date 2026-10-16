@@ -169,6 +169,8 @@ export class BoardView {
     const existing = this.placedPieces[row][col];
     if (existing) {
       this.piecesGroup.remove(existing);
+      // 旧棋子的材质是 clone 出来的，移除时一并释放，避免泄漏
+      (existing.material as THREE.Material).dispose();
     }
 
     const material = (color === 1 ? this.blackMaterial : this.whiteMaterial).clone();
@@ -303,6 +305,8 @@ export class BoardView {
       (p.mesh.material as THREE.Material).dispose();
     }
     this.particles.length = 0;
+    // 粒子材质已在上面逐个 dispose，这里清空引用避免数组无限增长
+    this.particleMaterials.length = 0;
 
     // 棋罐补满
     for (const pile of this.bowlPiles) {
@@ -383,6 +387,8 @@ export class BoardView {
         { y: 0.95, rings: [{ r: 0, n: 1 }, { r: 0.5, n: 5 }, { r: 1.0, n: 9 }] },
         { y: 1.18, rings: [{ r: 0, n: 1 }, { r: 0.55, n: 6 }] },
         { y: 1.4, rings: [{ r: 0.38, n: 4 }] },
+        // 第四层：把每色可视棋子从 26 颗加到 40 颗，长对局（50+ 手）飞子动画不再降级
+        { y: 1.62, rings: [{ r: 0, n: 1 }, { r: 0.45, n: 5 }, { r: 0.9, n: 8 }] },
       ];
       const meshes: THREE.Mesh[] = [];
       for (const layer of layers) {

@@ -33,22 +33,6 @@ export function cellKey(row: number, col: number): string {
   return `${colLetter}${rowNumber}`;
 }
 
-export function parseKey(key: string): { row: number; col: number } | null {
-  if (typeof key !== 'string') {
-    return null;
-  }
-  const match = key.trim().match(/^([A-Oa-o])([1-9]|1[0-5])$/);
-  if (!match) {
-    return null;
-  }
-  const col = match[1].toUpperCase().charCodeAt(0) - 65;
-  const row = parseInt(match[2], 10) - 1;
-  if (row < 0 || row >= SIZE || col < 0 || col >= SIZE) {
-    return null;
-  }
-  return { row, col };
-}
-
 export function checkWin(board: Board, row: number, col: number): boolean {
   if (!Array.isArray(board) || !Number.isInteger(row) || !Number.isInteger(col)) {
     return false;

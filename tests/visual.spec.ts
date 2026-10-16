@@ -89,7 +89,10 @@ test('renders a nonblank interactive game canvas', async ({ page }, testInfo) =>
   expect(pageErrors).toEqual([]);
 });
 
-test('multi-touch gesture never places a stone (both release orders)', async ({ page }) => {
+test('multi-touch gesture never places a stone (both release orders)', async ({ page, browserName }) => {
+  // CDP Input.dispatchTouchEvent 仅 Chromium 支持，WebKit/Firefox 下跳过；
+  // Playwright 的 touchscreen API 只支持单击，做不了多指手势，故无 WebKit 等价用例
+  test.skip(browserName !== 'chromium', 'CDP multi-touch dispatch requires Chromium');
   await page.goto('/');
   await expect(page.locator('#game-canvas')).toBeVisible();
   await page.waitForFunction(() => (window.__THREE_GAME_DIAGNOSTICS__?.frame ?? 0) > 10);

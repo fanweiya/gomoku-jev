@@ -14,6 +14,7 @@ import {
   type Cell,
 } from './GomokuCore';
 import { chooseAiMove } from './JevClient';
+import { disposeObject3D } from '../utils/dispose';
 
 export class Game {
   private readonly renderer: THREE.WebGLRenderer;
@@ -93,6 +94,8 @@ export class Game {
     window.removeEventListener('resize', this.onWindowResize);
     this.hud.dispose();
     this.boardView.dispose();
+    // 释放 createScene() 中直接挂在 scene 上的 table/灯光（boardView 已自行释放，重复 dispose 安全）
+    disposeObject3D(this.scene);
     this.renderer.dispose();
     window.__THREE_GAME_DIAGNOSTICS__ = undefined;
     window.__THREE_GAME_TEST_HOOKS__ = undefined;
@@ -363,6 +366,13 @@ export class Game {
       this.publishDiagnostics();
     } catch (error) {
       console.error('AI 走棋处理发生异常:', error);
+      // 异常兜底：把回合交还给玩家，避免永久卡死在"思考中"
+      if (this.turn === 'ai') {
+        this.turn = 'human';
+        this.aiThinkingStartTime = null;
+        this.hud.setHumanTurn('AI 出错，已交还回合');
+        this.publishDiagnostics();
+      }
     }
   }
 

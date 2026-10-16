@@ -88,3 +88,39 @@ test('renders a nonblank interactive game canvas', async ({ page }, testInfo) =>
   expect(consoleErrors).toEqual([]);
   expect(pageErrors).toEqual([]);
 });
+
+test('multi-touch gesture never places a stone (both release orders)', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('#game-canvas')).toBeVisible();
+  await page.waitForFunction(() => (window.__THREE_GAME_DIAGNOSTICS__?.frame ?? 0) > 10);
+
+  const canvas = page.locator('#game-canvas');
+  const box = await canvas.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+
+  const cdp = await page.context().newCDPSession(page);
+  const moves = () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.moves ?? -1);
+
+  // 顺序一：第一指先松，第二指后松
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }, { x: x + 60, y, id: 2 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [{ x: x + 60, y, id: 2 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(300);
+  expect(await moves()).toBe(0);
+
+  // 顺序二：第二指先松，第一指后松
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }, { x: x + 60, y, id: 2 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [{ x, y, id: 1 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.waitForTimeout(300);
+  expect(await moves()).toBe(0);
+
+  // 多指手势后单指点击仍应正常落子（手势状态已复位）
+  await page.mouse.click(x, y);
+  await expect.poll(moves).toBeGreaterThanOrEqual(1);
+});

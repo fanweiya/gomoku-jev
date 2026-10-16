@@ -39,7 +39,11 @@ export class Game {
   private readonly pointer = new THREE.Vector2();
   private readonly pointerDownPos = new THREE.Vector2();
   private pointerDownTime = 0;
-  private activePointerId: number | null = null;
+  // 触控状态：pressedPointers 记录当前所有按下的触点；tapPointerId 是用于点击判定的那根手指；
+  // 手势期间一旦出现多指（tapCancelled=true），本次手势禁止落子，直到所有触点释放
+  private readonly pressedPointers = new Set<number>();
+  private tapPointerId: number | null = null;
+  private tapCancelled = false;
 
   private board: Board = createBoard();
   private turn: 'human' | 'ai' | 'over' = 'human';
@@ -251,21 +255,31 @@ export class Game {
   };
 
   private readonly onPointerDown = (event: PointerEvent): void => {
-    // 多指触控时只响应第一指，忽略后续手指，避免双指缩放误落子
-    if (this.activePointerId !== null) {
+    if (this.pressedPointers.size > 0) {
+      // 已有手指在屏幕上：多指手势出现，取消本次点击的落子资格
+      this.tapCancelled = true;
+      this.pressedPointers.add(event.pointerId);
       return;
     }
-    this.activePointerId = event.pointerId;
+    this.pressedPointers.add(event.pointerId);
+    this.tapPointerId = event.pointerId;
+    this.tapCancelled = false;
     this.pointerDownPos.set(event.clientX, event.clientY);
     this.pointerDownTime = performance.now();
   };
 
   private readonly onPointerUp = (event: PointerEvent): void => {
-    // 只处理按下时的那根手指，其他手指的抬起直接忽略
-    if (event.pointerId !== this.activePointerId) {
+    this.pressedPointers.delete(event.pointerId);
+    // 只处理点击判定的那根手指，其他手指的抬起直接忽略
+    if (event.pointerId !== this.tapPointerId) {
       return;
     }
-    this.activePointerId = null;
+    this.tapPointerId = null;
+    if (this.tapCancelled) {
+      // 手势期间出现过多指：禁止落子，直到所有触点释放后下一次手势才恢复
+      this.tapCancelled = false;
+      return;
+    }
     const dx = event.clientX - this.pointerDownPos.x;
     const dy = event.clientY - this.pointerDownPos.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -301,9 +315,13 @@ export class Game {
     this.boardView.hideGhost();
   };
 
-  private readonly onPointerCancel = (): void => {
-    // 手势被系统取消（如来电、多指冲突）时释放手指占用，避免 activePointerId 永久占用
-    this.activePointerId = null;
+  private readonly onPointerCancel = (event: PointerEvent): void => {
+    // 手势被系统取消（如来电、多指冲突）时释放该触点占用，避免 pressedPointers 永久残留
+    this.pressedPointers.delete(event.pointerId);
+    if (event.pointerId === this.tapPointerId) {
+      this.tapPointerId = null;
+      this.tapCancelled = false;
+    }
     this.boardView.hideGhost();
   };
 

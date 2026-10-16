@@ -59,29 +59,25 @@ test('renders a nonblank interactive game canvas', async ({ page }, testInfo) =>
   const sample = await sampleCanvas(page);
   expect(sample, JSON.stringify(sample)).toMatchObject({ ok: true });
 
-  const before = await page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.player.position.z ?? 0);
-
-  if (testInfo.project.name.includes('mobile')) {
-    const stick = page.locator('#touch-stick');
-    await expect(stick).toBeVisible();
-    const box = await stick.boundingBox();
-    expect(box).not.toBeNull();
-    if (box) {
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-      await page.mouse.down();
-      await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.05, { steps: 6 });
-      await page.waitForTimeout(450);
-      await page.mouse.up();
-    }
-  } else {
-    await page.keyboard.down('KeyW');
-    await page.waitForTimeout(450);
-    await page.keyboard.up('KeyW');
+  // 五子棋：在棋盘中心点击应落下一子（moves 从 0 增加）
+  const canvas = page.locator('#game-canvas');
+  const box = await canvas.boundingBox();
+  expect(box).not.toBeNull();
+  if (box) {
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   }
-
   await expect
-    .poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.player.position.z ?? 0))
-    .toBeLessThan(before - 0.3);
+    .poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.moves ?? 0))
+    .toBeGreaterThanOrEqual(1);
+
+  // 重开按钮应清空棋盘回到初始状态
+  await page.locator('#restart-btn').click();
+  await expect
+    .poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.moves ?? -1))
+    .toBe(0);
+  await expect
+    .poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.turn ?? ''))
+    .toBe('human');
 
   const screenshot = await page.screenshot({ fullPage: true });
   await testInfo.attach(`${testInfo.project.name}-game`, {

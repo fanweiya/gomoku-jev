@@ -39,6 +39,7 @@ export class Game {
   private readonly pointer = new THREE.Vector2();
   private readonly pointerDownPos = new THREE.Vector2();
   private pointerDownTime = 0;
+  private activePointerId: number | null = null;
 
   private board: Board = createBoard();
   private turn: 'human' | 'ai' | 'over' = 'human';
@@ -50,6 +51,8 @@ export class Game {
   private reducedMotion = false;
   private pausedForScreenshot = false;
   private aiThinkingStartTime: number | null = null;
+  // AI 请求代际计数器：重开新局时递增，使在途的旧请求返回后被识别为过期而丢弃
+  private aiGeneration = 0;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = createRenderer(canvas);
@@ -208,6 +211,7 @@ export class Game {
     this.canvas.addEventListener('pointermove', this.onPointerMove);
     this.canvas.addEventListener('pointerdown', this.onPointerDown);
     this.canvas.addEventListener('pointerup', this.onPointerUp);
+    this.canvas.addEventListener('pointercancel', this.onPointerCancel);
     this.canvas.addEventListener('pointerleave', this.onPointerLeave);
   }
 
@@ -215,6 +219,7 @@ export class Game {
     this.canvas.removeEventListener('pointermove', this.onPointerMove);
     this.canvas.removeEventListener('pointerdown', this.onPointerDown);
     this.canvas.removeEventListener('pointerup', this.onPointerUp);
+    this.canvas.removeEventListener('pointercancel', this.onPointerCancel);
     this.canvas.removeEventListener('pointerleave', this.onPointerLeave);
   }
 
@@ -246,11 +251,21 @@ export class Game {
   };
 
   private readonly onPointerDown = (event: PointerEvent): void => {
+    // 多指触控时只响应第一指，忽略后续手指，避免双指缩放误落子
+    if (this.activePointerId !== null) {
+      return;
+    }
+    this.activePointerId = event.pointerId;
     this.pointerDownPos.set(event.clientX, event.clientY);
     this.pointerDownTime = performance.now();
   };
 
   private readonly onPointerUp = (event: PointerEvent): void => {
+    // 只处理按下时的那根手指，其他手指的抬起直接忽略
+    if (event.pointerId !== this.activePointerId) {
+      return;
+    }
+    this.activePointerId = null;
     const dx = event.clientX - this.pointerDownPos.x;
     const dy = event.clientY - this.pointerDownPos.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -283,6 +298,12 @@ export class Game {
   };
 
   private readonly onPointerLeave = (): void => {
+    this.boardView.hideGhost();
+  };
+
+  private readonly onPointerCancel = (): void => {
+    // 手势被系统取消（如来电、多指冲突）时释放手指占用，避免 activePointerId 永久占用
+    this.activePointerId = null;
     this.boardView.hideGhost();
   };
 
@@ -319,16 +340,17 @@ export class Game {
     this.hud.setAiThinking(0);
     this.publishDiagnostics();
 
-    void this.executeAiTurn();
+    void this.executeAiTurn(this.aiGeneration);
   }
 
-  private async executeAiTurn(): Promise<void> {
+  private async executeAiTurn(generation: number): Promise<void> {
     try {
       const candidates = getCandidates(this.board, 2);
       const boardString = boardToString(this.board);
       const choice = await chooseAiMove(boardString, candidates);
 
-      if (this.turn !== 'ai') {
+      // 双重过期校验：回合已变，或请求代际已过期（重开新局），都直接丢弃
+      if (this.turn !== 'ai' || generation !== this.aiGeneration) {
         return;
       }
 
@@ -418,6 +440,8 @@ export class Game {
     this.moves = 0;
     this.complete = false;
     this.aiThinkingStartTime = null;
+    // 新局递增代际，使重开前在途的旧 AI 请求返回后被识别为过期而丢弃
+    this.aiGeneration++;
 
     this.boardView.reset();
     this.shakeRemaining = 0;

@@ -76,6 +76,14 @@ export class BoardView {
   };
   private readonly bowlGeometry = new THREE.SphereGeometry(1.55, 36, 24, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.5);
   private readonly pileStoneGeometry = new THREE.SphereGeometry(0.34, 20, 14);
+  private readonly bowlMaterial = new THREE.MeshStandardMaterial({
+    color: '#5a3a22',
+    roughness: 0.5,
+    metalness: 0.06,
+    side: THREE.DoubleSide,
+  });
+  private readonly rimMaterial = new THREE.MeshStandardMaterial({ color: '#7a5230', roughness: 0.4 });
+  private readonly rimGeometry = new THREE.TorusGeometry(1.55, 0.09, 12, 48);
 
   // 终局庆祝粒子
   private readonly particles: Particle[] = [];
@@ -341,6 +349,9 @@ export class BoardView {
     this.ghostMaterial.dispose();
     this.markerMaterial.dispose();
     this.bowlGeometry.dispose();
+    this.bowlMaterial.dispose();
+    this.rimGeometry.dispose();
+    this.rimMaterial.dispose();
     this.pileStoneGeometry.dispose();
     this.particleGeometry.dispose();
     for (const material of this.particleMaterials.splice(0)) material.dispose();
@@ -351,13 +362,6 @@ export class BoardView {
   /** 棋盘左右两个棋罐：左黑右白，罐内堆满棋子，随对局消耗 */
   private createBowls(): void {
     const tableY = -this.boardHeight;
-    const bowlMaterial = new THREE.MeshStandardMaterial({
-      color: '#5a3a22',
-      roughness: 0.5,
-      metalness: 0.06,
-      side: THREE.DoubleSide,
-    });
-    const rimMaterial = new THREE.MeshStandardMaterial({ color: '#7a5230', roughness: 0.4 });
 
     const offset = this.boardWidth / 2 + 2.6;
     const setups: { x: number; stoneMat: THREE.MeshStandardMaterial; color: 1 | 2 }[] = [
@@ -369,13 +373,13 @@ export class BoardView {
       const bowlGroup = new THREE.Group();
 
       // 半球（thetaStart=PI/2）天然是开口朝上的碗形，不能再翻转
-      const shell = new THREE.Mesh(this.bowlGeometry, bowlMaterial);
+      const shell = new THREE.Mesh(this.bowlGeometry, this.bowlMaterial);
       shell.position.y = 1.55;
       shell.castShadow = true;
       shell.receiveShadow = true;
       bowlGroup.add(shell);
 
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(1.55, 0.09, 12, 48), rimMaterial);
+      const rim = new THREE.Mesh(this.rimGeometry, this.rimMaterial);
       rim.rotation.x = Math.PI / 2;
       rim.position.y = 1.55;
       rim.castShadow = true;

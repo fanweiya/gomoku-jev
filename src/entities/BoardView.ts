@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getRandom } from '../utils/random';
 
 export interface GridIntersection {
   row: number;
@@ -245,17 +246,17 @@ export class BoardView {
         const particle = new THREE.Mesh(this.particleGeometry, material);
         particle.position.copy(origin).add(new THREE.Vector3(0, 0.4, 0));
 
-        const angle = Math.random() * Math.PI * 2;
-        const speed = 2.5 + Math.random() * 4.5;
+        const angle = getRandom() * Math.PI * 2;
+        const speed = 2.5 + getRandom() * 4.5;
         this.particles.push({
           mesh: particle,
           velocity: new THREE.Vector3(
             Math.cos(angle) * speed * 0.55,
-            4 + Math.random() * 5,
+            4 + getRandom() * 5,
             Math.sin(angle) * speed * 0.55,
           ),
           life: 0,
-          maxLife: 1.1 + Math.random() * 0.7,
+          maxLife: 1.1 + getRandom() * 0.7,
         });
         this.group.add(particle);
       }

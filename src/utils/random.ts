@@ -13,3 +13,13 @@ export function createSeededRandom(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+let activeRandom: () => number = Math.random;
+
+export function setSeed(seed: number): void {
+  activeRandom = createSeededRandom(seed);
+}
+
+export function getRandom(): number {
+  return activeRandom();
+}

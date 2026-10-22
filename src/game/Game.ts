@@ -15,6 +15,7 @@ import {
 } from './GomokuCore';
 import { chooseAiMove } from './JevClient';
 import { disposeObject3D } from '../utils/dispose';
+import { getRandom, setSeed } from '../utils/random';
 
 export class Game {
   private readonly renderer: THREE.WebGLRenderer;
@@ -154,7 +155,7 @@ export class Game {
     }
     const intensity = (this.shakeRemaining / this.shakeDuration) * this.shakeAmplitude;
     return this.shakeVec
-      .set(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1)
+      .set(getRandom() * 2 - 1, getRandom() * 2 - 1, getRandom() * 2 - 1)
       .multiplyScalar(intensity);
   }
 
@@ -468,6 +469,7 @@ export class Game {
     this.turn = 'human';
     this.winner = null;
     this.moves = 0;
+    this.elapsed = 0;
     this.complete = false;
     this.aiThinkingStartTime = null;
     // 新局递增代际，使重开前在途的旧 AI 请求返回后被识别为过期而丢弃
@@ -509,7 +511,9 @@ export class Game {
 
   private installTestHooks(): void {
     window.__THREE_GAME_TEST_HOOKS__ = {
-      seed: (_value: number) => {},
+      seed: (value: number) => {
+        setSeed(value);
+      },
       setState: (name: string) => {
         if (name === 'active-play') {
           this.restartGame();

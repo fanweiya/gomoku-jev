@@ -9,7 +9,7 @@
   </head>
   <body>
     <main id="app">
-      <canvas id="game-canvas" aria-label="五子棋 3D 棋盘画布"></canvas>
+      <canvas id="game-canvas" aria-label="五子棋 3D 棋盘画布" tabindex="0"></canvas>
 
       <header id="game-header" class="game-header">
         <div class="player-card human" id="player-human">
@@ -17,7 +17,7 @@
           <span class="player-label">你 · 黑</span>
         </div>
 
-        <div class="status-panel">
+        <div class="status-panel" aria-live="polite" aria-atomic="true">
           <div id="status-text" class="status-primary">你的回合</div>
           <div id="sub-status" class="status-secondary">点击交叉点放置棋子</div>
         </div>
@@ -30,6 +30,10 @@
         <button id="restart-btn" type="button" class="btn-restart" aria-label="重新开始对局">
           重新开始
         </button>
+
+        <button id="undo-btn" type="button" class="btn-restart" aria-label="悔棋，撤销最近一轮" title="撤销最近一轮（你和 Jev 各一手）" disabled>
+          悔棋
+        </button>
       </header>
 
       <div id="game-overlay" class="game-overlay hidden" aria-modal="true" role="dialog">
@@ -37,13 +41,29 @@
           <div id="overlay-badge" class="overlay-badge">对局结束</div>
           <h2 id="overlay-title" class="overlay-title">你赢了</h2>
           <p id="overlay-desc" class="overlay-desc">共 25 手 · 执黑获胜</p>
+          <p id="overlay-record" class="overlay-record" hidden></p>
+          <details id="overlay-moves" class="overlay-moves" hidden>
+            <summary>本局棋谱</summary>
+            <p id="overlay-moves-text"></p>
+          </details>
           <div class="overlay-actions">
             <button id="overlay-restart-btn" type="button" class="btn-primary">再来一局</button>
           </div>
         </div>
       </div>
 
-      <div class="camera-hint">拖动旋转 360° · 滚轮/双指缩放 · 点击交叉点落子</div>
+      <div id="confirm-overlay" class="game-overlay confirm-overlay hidden" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-desc">
+        <div class="overlay-dialog confirm-dialog">
+          <h2 id="confirm-title" class="overlay-title confirm-title">重新开始对局？</h2>
+          <p id="confirm-desc" class="overlay-desc">当前对局将作废。</p>
+          <div class="overlay-actions confirm-actions">
+            <button id="confirm-cancel-btn" type="button" class="btn-primary btn-secondary">继续对局</button>
+            <button id="confirm-restart-btn" type="button" class="btn-primary btn-danger">确认重开</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="camera-hint" class="camera-hint">拖动旋转 360° · 滚轮/双指缩放 · 点击交叉点落子</div>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

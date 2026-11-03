@@ -137,7 +137,7 @@ body,
 
 .status-secondary {
   color: var(--color-text-muted);
-  font-size: 0.76rem;
+  font-size: 0.82rem;
   font-weight: 500;
   margin-top: 2px;
   white-space: nowrap;
@@ -148,7 +148,7 @@ body,
 /* 按钮通用 */
 .btn-restart {
   padding: 8px 16px;
-  min-height: 38px;
+  min-height: 44px;
   border-radius: 9999px;
   background: var(--color-card-bg);
   border: 1px solid var(--color-card-border);
@@ -172,6 +172,21 @@ body,
 
 .btn-restart:active {
   transform: scale(0.96);
+}
+
+.btn-restart:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btn-restart:disabled:hover {
+  background: var(--color-card-bg);
+  border-color: var(--color-card-border);
+  color: var(--color-text-main);
+}
+
+.btn-restart:disabled:active {
+  transform: none;
 }
 
 /* 终局居中 Overlay */
@@ -250,6 +265,76 @@ body,
   margin: 10px 0 24px;
   font-size: 0.92rem;
   color: var(--color-text-muted);
+}
+
+.overlay-record {
+  margin: -14px 0 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-gold);
+}
+
+.overlay-moves {
+  width: 100%;
+  margin: -4px 0 20px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.overlay-moves summary {
+  cursor: pointer;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.overlay-moves p {
+  max-height: 96px;
+  overflow-y: auto;
+  margin: 8px 0 0;
+  line-height: 1.7;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+/* 重开确认弹窗 */
+.confirm-dialog {
+  min-width: 260px;
+}
+
+.confirm-title {
+  font-size: 1.35rem;
+  animation: none;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.confirm-actions .btn-primary {
+  flex: 1;
+  width: auto;
+}
+
+.btn-secondary {
+  background: rgba(246, 241, 223, 0.1);
+  color: var(--color-text-main);
+  border: 1px solid var(--color-card-border);
+  box-shadow: none;
+}
+
+.btn-secondary:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #e8734a, #cf4c1f);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(232, 115, 74, 0.35);
+}
+
+.btn-danger:hover {
+  box-shadow: 0 6px 20px rgba(232, 115, 74, 0.5);
 }
 
 .overlay-actions {
@@ -371,7 +456,7 @@ body,
   background: rgba(18, 20, 22, 0.7);
   border: 1px solid var(--color-card-border);
   color: var(--color-text-muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.02em;
   pointer-events: none;
   z-index: 10;
@@ -380,6 +465,11 @@ body,
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: opacity 0.4s ease;
+}
+
+.camera-hint.hint-dismissed {
+  opacity: 0;
 }
 
 /* 响应式适配 */
@@ -407,13 +497,13 @@ body,
   }
 
   .status-secondary {
-    font-size: 0.72rem;
+    font-size: 0.82rem;
   }
 
   .btn-restart {
     padding: 6px 12px;
     font-size: 0.78rem;
-    min-height: 34px;
+    min-height: 44px;
   }
 
   .overlay-dialog {
@@ -425,8 +515,30 @@ body,
   }
 
   .camera-hint {
-    font-size: 0.66rem;
+    font-size: 0.75rem;
     padding: 5px 10px;
     bottom: max(10px, env(safe-area-inset-bottom));
+  }
+}
+
+/* 系统「减弱动态效果」偏好：关掉弹窗/标题/闪光等装饰动画 */
+@media (prefers-reduced-motion: reduce) {
+  .overlay-dialog,
+  .overlay-title,
+  .result-lose .overlay-dialog {
+    animation: none;
+  }
+
+  .end-flash {
+    animation: none;
+    opacity: 0;
+  }
+
+  .game-overlay,
+  .player-card,
+  .btn-restart,
+  .btn-primary,
+  .camera-hint {
+    transition: none;
   }
 }

@@ -70,8 +70,10 @@ test('renders a nonblank interactive game canvas', async ({ page }, testInfo) =>
     .poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.moves ?? 0))
     .toBeGreaterThanOrEqual(1);
 
-  // 重开按钮应清空棋盘回到初始状态
+  // 对局进行中点「重新开始」先弹确认，确认后才清盘回到初始状态
   await page.locator('#restart-btn').click();
+  await expect(page.locator('#confirm-overlay')).toBeVisible();
+  await page.locator('#confirm-restart-btn').click();
   await expect
     .poll(async () => page.evaluate(() => window.__THREE_GAME_DIAGNOSTICS__?.moves ?? -1))
     .toBe(0);

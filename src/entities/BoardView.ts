@@ -57,9 +57,14 @@ export class BoardView {
     opacity: 0.45,
   });
 
-  private readonly markerGeometry = new THREE.CylinderGeometry(0.065, 0.065, 0.015, 16);
-  private readonly markerMaterial = new THREE.MeshBasicMaterial({ color: '#e74c3c' });
-  private readonly lastMoveMarker = new THREE.Mesh(this.markerGeometry, this.markerMaterial);
+  // 最后一手标记：环形套在棋子顶面边缘，黑子用亮红、白子用深红，两个方向都保证对比
+  private readonly markerGeometry = new THREE.TorusGeometry(0.2, 0.05, 10, 28);
+  private readonly markerMaterialOnBlack = new THREE.MeshBasicMaterial({ color: '#ff5347' });
+  private readonly markerMaterialOnWhite = new THREE.MeshBasicMaterial({ color: '#c22f1f' });
+  private readonly lastMoveMarker = new THREE.Mesh(this.markerGeometry, this.markerMaterialOnBlack);
+  /** 标记脉冲动画截止时刻（BoardView 内部时钟，取 update 的 elapsed） */
+  private markerPulseUntil = 0;
+  private elapsedNow = 0;
 
   private readonly piecesGroup = new THREE.Group();
   private readonly ghostPiece: THREE.Mesh;
@@ -100,6 +105,7 @@ export class BoardView {
     this.ghostPiece.visible = false;
     this.group.add(this.ghostPiece);
 
+    this.lastMoveMarker.rotation.x = Math.PI / 2;
     this.lastMoveMarker.visible = false;
     this.group.add(this.lastMoveMarker);
 
@@ -127,7 +133,7 @@ export class BoardView {
     const dz = worldZ - snapZ;
     const distance = Math.sqrt(dx * dx + dz * dz);
 
-    if (distance < 0.4 * this.gridSpacing) {
+    if (distance < 0.5 * this.gridSpacing) {
       return { row, col };
     }
     return null;
@@ -139,7 +145,16 @@ export class BoardView {
     const posZ = (row - halfGrid) * this.gridSpacing;
 
     this.ghostPiece.position.set(posX, 0.16, posZ);
+    this.ghostPiece.scale.set(1, 0.38, 1);
+    this.ghostMaterial.opacity = 0.45;
     this.ghostPiece.visible = true;
+  }
+
+  /** 触控两段式落子的已选态预览：ghost 放大并加深，一眼可辨 */
+  showGhostSelected(row: number, col: number): void {
+    this.showGhost(row, col);
+    this.ghostPiece.scale.set(1.3, 0.5, 1.3);
+    this.ghostMaterial.opacity = 0.85;
   }
 
   hideGhost(): void {
@@ -212,8 +227,55 @@ export class BoardView {
     this.piecesGroup.add(mesh);
     this.placedPieces[row][col] = mesh;
 
-    this.lastMoveMarker.position.set(posX, 0.32, posZ);
+    this.syncLastMoveMarker({ row, col }, color);
+    this.markerPulseUntil = this.elapsedNow + 1.6;
+  }
+
+  /** 把最后一手标记移到指定格（落子与悔棋后共用）；cell 为空则隐藏 */
+  syncLastMoveMarker(cell: GridIntersection | null, color: 1 | 2 = 1): void {
+    if (!cell) {
+      this.lastMoveMarker.visible = false;
+      return;
+    }
+    const halfGrid = (this.boardSize - 1) / 2;
+    const posX = (cell.col - halfGrid) * this.gridSpacing;
+    const posZ = (cell.row - halfGrid) * this.gridSpacing;
+    this.lastMoveMarker.material =
+      color === 1 ? this.markerMaterialOnBlack : this.markerMaterialOnWhite;
+    this.lastMoveMarker.position.set(posX, 0.3, posZ);
     this.lastMoveMarker.visible = true;
+  }
+
+  /** 悔棋：移除一颗已落棋子，并把棋罐存量补回一颗 */
+  removePiece(row: number, col: number, color: 1 | 2): void {
+    const mesh = this.placedPieces[row][col];
+    if (!mesh) {
+      return;
+    }
+    for (let i = this.animations.length - 1; i >= 0; i--) {
+      if (this.animations[i].mesh === mesh) {
+        this.animations.splice(i, 1);
+      }
+    }
+    this.piecesGroup.remove(mesh);
+    (mesh.material as THREE.Material).dispose();
+    this.placedPieces[row][col] = null;
+
+    const pile = this.bowlPiles.find((p) => p.color === color);
+    if (pile && pile.next < pile.meshes.length) {
+      pile.meshes[pile.next].visible = true;
+      pile.next += 1;
+    }
+  }
+
+  /** 是否还有需要逐帧渲染的动态内容（落子飞行 / 粒子 / 胜负脉冲 / 标记脉冲） */
+  hasActiveAnimations(): boolean {
+    return (
+      this.animations.length > 0 ||
+      this.particles.length > 0 ||
+      this.winningPieces.length > 0 ||
+      (this.lastMoveMarker.visible && this.elapsedNow < this.markerPulseUntil)
+    );
   }
 
   highlightWinningPieces(cells: GridIntersection[]): void {
@@ -264,6 +326,15 @@ export class BoardView {
   }
 
   update(delta: number, elapsed: number): void {
+    this.elapsedNow = elapsed;
+
+    // 最后一手标记在落子后短暂轻脉冲，帮助定位刚下的一手
+    if (this.lastMoveMarker.visible) {
+      const remain = Math.max(0, (this.markerPulseUntil - elapsed) / 1.6);
+      const scale = 1 + 0.1 * remain * Math.sin(elapsed * 9);
+      this.lastMoveMarker.scale.setScalar(remain > 0 ? scale : 1);
+    }
+
     for (let i = this.animations.length - 1; i >= 0; i--) {
       const anim = this.animations[i];
       anim.progress += delta / anim.duration;
@@ -337,6 +408,7 @@ export class BoardView {
     }
 
     this.lastMoveMarker.visible = false;
+    this.markerPulseUntil = 0;
     this.ghostPiece.visible = false;
   }
 
@@ -348,7 +420,8 @@ export class BoardView {
     this.blackMaterial.dispose();
     this.whiteMaterial.dispose();
     this.ghostMaterial.dispose();
-    this.markerMaterial.dispose();
+    this.markerMaterialOnBlack.dispose();
+    this.markerMaterialOnWhite.dispose();
     this.bowlGeometry.dispose();
     this.bowlMaterial.dispose();
     this.rimGeometry.dispose();
@@ -463,10 +536,11 @@ export class BoardView {
       throw new Error('无法创建 Canvas 2D 绘图上下文');
     }
 
+    // 棋面整体压暗半档：白子色面对比从约 1.75:1 抬回 2.5:1 一带，边缘不再只靠光影
     const gradient = ctx.createLinearGradient(0, 0, 2048, 2048);
-    gradient.addColorStop(0, '#e5b877');
-    gradient.addColorStop(0.5, '#deb06e');
-    gradient.addColorStop(1, '#cf9e5a');
+    gradient.addColorStop(0, '#d9a860');
+    gradient.addColorStop(0.5, '#cb9c52');
+    gradient.addColorStop(1, '#c08f47');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 2048, 2048);
 
@@ -512,8 +586,8 @@ export class BoardView {
       ctx.fill();
     }
 
-    ctx.fillStyle = 'rgba(60, 36, 16, 0.72)';
-    ctx.font = '600 32px sans-serif';
+    ctx.fillStyle = 'rgba(60, 36, 16, 0.85)';
+    ctx.font = '700 32px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 

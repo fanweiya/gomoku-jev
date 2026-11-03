@@ -9,6 +9,7 @@ import {
   checkWin,
   isBoardFull,
   boardToString,
+  cellKey,
   getCandidates,
   type Board,
   type Cell,
@@ -59,6 +60,24 @@ export class Game {
   // AI 请求代际计数器：重开新局时递增，使在途的旧请求返回后被识别为过期而丢弃
   private aiGeneration = 0;
 
+  /** 落子历史（悔棋与棋谱共用），按落子顺序记录 */
+  private moveHistory: { row: number; col: number; color: 1 | 2 }[] = [];
+  /** 触控两段式落子的已选格；桌面端单击直落，不使用 */
+  private pendingSelection: GridIntersection | null = null;
+  /** 无效操作提示的节流时刻，避免连点刷屏 */
+  private lastHintAt = 0;
+  /** 本次会话累计成功落子数（操作提示在前几手后自动收起） */
+  private hintPlacements = 0;
+  /** 键盘落子的焦点格，方向键移动、Enter 落子 */
+  private keyboardCell: GridIntersection = { row: 7, col: 7 };
+
+  // 按需渲染：静止局面跳过 WebGL render，省电省热
+  private renderDirty = true;
+  private controlsMoved = false;
+  private lastDiagnosticsAt = 0;
+
+  private readonly reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = createRenderer(canvas);
     this.camera.position.set(0, 16.5, 12.8);
@@ -81,15 +100,32 @@ export class Game {
     this.controls.addEventListener('start', () => { this.userMovedCamera = true; });
     window.addEventListener('resize', this.onWindowResize);
 
+    // 动态效果降级跟随系统偏好；测试钩子仍可覆盖
+    this.reducedMotion = this.reducedMotionQuery.matches;
+    this.reducedMotionQuery.addEventListener('change', this.onReducedMotionChange);
+
     this.createScene();
     this.setupEvents();
     this.hud.onRestart(() => this.restartGame());
+    this.hud.onUndo(() => this.undoLastRound());
+    this.hud.setRestartGuard(() => this.moves > 0 && this.turn !== 'over');
+    this.hud.setFocusReturn(this.canvas);
+    this.hud.setCameraHintText(
+      window.matchMedia('(pointer: coarse)').matches
+        ? '拖动旋转 · 双指缩放 · 连点两下同一交叉点落子'
+        : '拖动旋转 360° · 滚轮/双指缩放 · 点击交叉点落子',
+    );
+    this.hud.setUndoEnabled(false);
     this.hud.setHumanTurn();
 
     resizeRenderer(this.renderer, this.camera, 2);
     this.installTestHooks();
-    this.publishDiagnostics();
+    this.publishDiagnostics(true);
   }
+
+  private readonly onReducedMotionChange = (event: MediaQueryListEvent): void => {
+    this.reducedMotion = event.matches;
+  };
 
   start(): void {
     this.loop.start();
@@ -98,6 +134,7 @@ export class Game {
   dispose(): void {
     this.loop.stop();
     this.detachEvents();
+    this.reducedMotionQuery.removeEventListener('change', this.onReducedMotionChange);
     this.controls.dispose();
     window.removeEventListener('resize', this.onWindowResize);
     this.hud.dispose();
@@ -119,14 +156,18 @@ export class Game {
       this.elapsed += delta;
     }
 
-    resizeRenderer(this.renderer, this.camera, 2);
+    if (resizeRenderer(this.renderer, this.camera, 2)) {
+      this.renderDirty = true;
+    }
 
     if (this.turn === 'ai' && this.aiThinkingStartTime !== null) {
       const seconds = Math.floor((performance.now() - this.aiThinkingStartTime) / 1000);
       this.hud.setAiThinking(seconds);
     }
 
-    this.controls.update();
+    if (this.controls.update()) {
+      this.controlsMoved = true;
+    }
     if (this.shakeRemaining > 0) {
       this.shakeRemaining = Math.max(0, this.shakeRemaining - delta);
     }
@@ -136,6 +177,17 @@ export class Game {
   }
 
   private render(): void {
+    // 静止局面（无相机运动、无动画、无震屏、无待渲染变更）跳过整帧渲染
+    if (
+      !this.renderDirty &&
+      !this.controlsMoved &&
+      this.shakeRemaining <= 0 &&
+      !this.boardView.hasActiveAnimations()
+    ) {
+      return;
+    }
+    this.renderDirty = false;
+    this.controlsMoved = false;
     const shake = this.getShakeOffset();
     this.camera.position.add(shake);
     this.renderer.render(this.scene, this.camera);
@@ -172,9 +224,12 @@ export class Game {
     const aspect = this.canvas.clientWidth / Math.max(1, this.canvas.clientHeight);
     // 棋盘对角线约 23；竖屏(aspect<0.7)拉到远景，横屏保持中景
     const distance = aspect < 0.7 ? 42 : aspect < 1.1 ? 30 : 21;
+    // 竖屏时注视点向近端偏移，让棋盘落在画面中上部，减少下方大片空黑
+    this.controls.target.set(0, 0, aspect < 0.7 ? 2.2 : 0);
     const dir = this.camera.position.clone().sub(this.controls.target).normalize();
     this.camera.position.copy(this.controls.target).addScaledVector(dir, distance);
     this.controls.update();
+    this.renderDirty = true;
   }
 
   private createScene(): void {
@@ -218,6 +273,7 @@ export class Game {
     this.canvas.addEventListener('pointerup', this.onPointerUp);
     this.canvas.addEventListener('pointercancel', this.onPointerCancel);
     this.canvas.addEventListener('pointerleave', this.onPointerLeave);
+    this.canvas.addEventListener('keydown', this.onKeyDown);
   }
 
   private detachEvents(): void {
@@ -226,34 +282,77 @@ export class Game {
     this.canvas.removeEventListener('pointerup', this.onPointerUp);
     this.canvas.removeEventListener('pointercancel', this.onPointerCancel);
     this.canvas.removeEventListener('pointerleave', this.onPointerLeave);
+    this.canvas.removeEventListener('keydown', this.onKeyDown);
   }
 
   private readonly onPointerMove = (event: PointerEvent): void => {
-    const rect = this.canvas.getBoundingClientRect();
-    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    // 触控拖动是旋转视角手势，ghost 不跟随手指（落子走两段式点选）
+    if (event.pointerType !== 'mouse') {
+      return;
+    }
+    this.renderDirty = true;
 
     if (this.turn !== 'human') {
       this.boardView.hideGhost();
       return;
     }
 
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hit = this.raycaster.ray.intersectPlane(this.boardPlane, this.planeIntersectPoint);
+    if (this.pendingSelection) {
+      this.boardView.showGhostSelected(this.pendingSelection.row, this.pendingSelection.col);
+      return;
+    }
 
-    if (hit) {
-      const cell = this.boardView.getIntersectionAt(
-        this.planeIntersectPoint.x,
-        this.planeIntersectPoint.z,
-      );
-      if (cell && this.board[cell.row][cell.col] === 0) {
-        this.boardView.showGhost(cell.row, cell.col);
-        return;
-      }
+    const cell = this.pickCell(event.clientX, event.clientY);
+    if (cell && this.board[cell.row][cell.col] === 0) {
+      this.boardView.showGhost(cell.row, cell.col);
+      return;
     }
 
     this.boardView.hideGhost();
   };
+
+  /** 屏幕坐标 → 棋盘交叉点（吸附范围外返回 null） */
+  private pickCell(clientX: number, clientY: number): GridIntersection | null {
+    const rect = this.canvas.getBoundingClientRect();
+    this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    const hit = this.raycaster.ray.intersectPlane(this.boardPlane, this.planeIntersectPoint);
+    if (!hit) {
+      return null;
+    }
+    return this.boardView.getIntersectionAt(
+      this.planeIntersectPoint.x,
+      this.planeIntersectPoint.z,
+    );
+  }
+
+  /** 无效操作反馈：副状态短提示，1.5 秒节流避免连点刷屏 */
+  private showHintThrottled(text: string): void {
+    const now = performance.now();
+    if (now - this.lastHintAt < 1500) {
+      return;
+    }
+    this.lastHintAt = now;
+    this.hud.setHint(text);
+  }
+
+  private setPendingSelection(cell: GridIntersection): void {
+    this.pendingSelection = cell;
+    this.boardView.showGhostSelected(cell.row, cell.col);
+    this.renderDirty = true;
+    this.hud.setHint(`已选 ${cellKey(cell.row, cell.col)} · 再点一次落子`);
+  }
+
+  private clearPendingSelection(): void {
+    if (!this.pendingSelection) {
+      return;
+    }
+    this.pendingSelection = null;
+    this.boardView.hideGhost();
+    this.renderDirty = true;
+  }
 
   private readonly onPointerDown = (event: PointerEvent): void => {
     if (this.pressedPointers.size > 0) {
@@ -290,24 +389,90 @@ export class Game {
       return;
     }
 
+    if (this.turn === 'ai') {
+      this.showHintThrottled('等 Jev 落子后轮到你');
+      return;
+    }
     if (this.turn !== 'human') {
       return;
     }
 
-    const rect = this.canvas.getBoundingClientRect();
-    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    const cell = this.pickCell(event.clientX, event.clientY);
+    if (!cell) {
+      // 点偏（吸附范围外）：触控没有 hover 预览，必须给明确反馈
+      if (event.pointerType === 'touch') {
+        this.showHintThrottled('没点中交叉点，再试一次');
+      }
+      return;
+    }
+    if (this.board[cell.row][cell.col] !== 0) {
+      this.showHintThrottled('该位置已有棋子');
+      return;
+    }
 
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hit = this.raycaster.ray.intersectPlane(this.boardPlane, this.planeIntersectPoint);
-
-    if (hit) {
-      const cell = this.boardView.getIntersectionAt(
-        this.planeIntersectPoint.x,
-        this.planeIntersectPoint.z,
-      );
-      if (cell && this.board[cell.row][cell.col] === 0) {
+    if (event.pointerType === 'touch') {
+      // 触控两段式：先点选预览，再点同一格确认落子；点别格改选
+      if (
+        this.pendingSelection &&
+        this.pendingSelection.row === cell.row &&
+        this.pendingSelection.col === cell.col
+      ) {
+        this.clearPendingSelection();
         this.handleHumanMove(cell.row, cell.col);
+      } else {
+        this.setPendingSelection(cell);
+      }
+      return;
+    }
+
+    this.clearPendingSelection();
+    this.handleHumanMove(cell.row, cell.col);
+  };
+
+  private readonly onKeyDown = (event: KeyboardEvent): void => {
+    const { row, col } = this.keyboardCell;
+    let next: GridIntersection | null = null;
+    switch (event.key) {
+      case 'ArrowUp':
+        next = { row: Math.max(0, row - 1), col };
+        break;
+      case 'ArrowDown':
+        next = { row: Math.min(14, row + 1), col };
+        break;
+      case 'ArrowLeft':
+        next = { row, col: Math.max(0, col - 1) };
+        break;
+      case 'ArrowRight':
+        next = { row, col: Math.min(14, col + 1) };
+        break;
+      case 'Enter':
+      case ' ':
+        event.preventDefault();
+        if (this.turn === 'ai') {
+          this.showHintThrottled('等 Jev 落子后轮到你');
+          return;
+        }
+        if (this.turn !== 'human') {
+          return;
+        }
+        if (this.board[row][col] !== 0) {
+          this.showHintThrottled('该位置已有棋子');
+          return;
+        }
+        this.clearPendingSelection();
+        this.handleHumanMove(row, col);
+        return;
+      default:
+        return;
+    }
+    event.preventDefault();
+    this.keyboardCell = next;
+    this.renderDirty = true;
+    if (this.turn === 'human') {
+      if (this.pendingSelection) {
+        this.boardView.showGhostSelected(this.pendingSelection.row, this.pendingSelection.col);
+      } else {
+        this.boardView.showGhost(next.row, next.col);
       }
     }
   };
@@ -329,8 +494,14 @@ export class Game {
   private handleHumanMove(row: number, col: number): void {
     this.board[row][col] = 1;
     this.moves += 1;
+    this.moveHistory.push({ row, col, color: 1 });
     this.boardView.placePiece(row, col, 1, this.reducedMotion);
     this.boardView.hideGhost();
+    this.renderDirty = true;
+    this.hintPlacements += 1;
+    if (this.hintPlacements === 3) {
+      this.hud.dismissCameraHint();
+    }
 
     if (checkWin(this.board, row, col)) {
       this.winner = 'human';
@@ -340,8 +511,13 @@ export class Game {
       this.boardView.highlightWinningPieces(line);
       this.boardView.celebrate(line, this.reducedMotion);
       this.triggerShake('win');
-      this.hud.showGameOver('human', this.moves);
-      this.publishDiagnostics();
+      this.recordResult('human');
+      this.hud.showGameOver('human', this.moves, {
+        recordText: this.recordText(),
+        movesText: this.buildMovesText(),
+      });
+      this.refreshUndoEnabled();
+      this.publishDiagnostics(true);
       return;
     }
 
@@ -349,15 +525,21 @@ export class Game {
       this.winner = 'draw';
       this.turn = 'over';
       this.complete = true;
-      this.hud.showGameOver('draw', this.moves);
-      this.publishDiagnostics();
+      this.recordResult('draw');
+      this.hud.showGameOver('draw', this.moves, {
+        recordText: this.recordText(),
+        movesText: this.buildMovesText(),
+      });
+      this.refreshUndoEnabled();
+      this.publishDiagnostics(true);
       return;
     }
 
     this.turn = 'ai';
     this.aiThinkingStartTime = performance.now();
     this.hud.setAiThinking(0);
-    this.publishDiagnostics();
+    this.refreshUndoEnabled();
+    this.publishDiagnostics(true);
 
     void this.executeAiTurn(this.aiGeneration);
   }
@@ -388,7 +570,9 @@ export class Game {
       }
       this.board[row][col] = 2;
       this.moves += 1;
+      this.moveHistory.push({ row, col, color: 2 });
       this.boardView.placePiece(row, col, 2, this.reducedMotion);
+      this.renderDirty = true;
 
       if (checkWin(this.board, row, col)) {
         this.winner = 'ai';
@@ -398,8 +582,13 @@ export class Game {
         this.boardView.highlightWinningPieces(line);
         this.boardView.celebrate(line, this.reducedMotion);
         this.triggerShake('lose');
-        this.hud.showGameOver('ai', this.moves);
-        this.publishDiagnostics();
+        this.recordResult('ai');
+        this.hud.showGameOver('ai', this.moves, {
+          recordText: this.recordText(),
+          movesText: this.buildMovesText(),
+        });
+        this.refreshUndoEnabled();
+        this.publishDiagnostics(true);
         return;
       }
 
@@ -407,16 +596,28 @@ export class Game {
         this.winner = 'draw';
         this.turn = 'over';
         this.complete = true;
-        this.hud.showGameOver('draw', this.moves);
-        this.publishDiagnostics();
+        this.recordResult('draw');
+        this.hud.showGameOver('draw', this.moves, {
+          recordText: this.recordText(),
+          movesText: this.buildMovesText(),
+        });
+        this.refreshUndoEnabled();
+        this.publishDiagnostics(true);
         return;
       }
 
       this.turn = 'human';
       this.aiThinkingStartTime = null;
-      const confidenceText = typeof confidence === 'number' ? confidence.toFixed(2) : '1.00';
-      this.hud.setHumanTurn(`Jev: ${key} (${confidenceText})`);
-      this.publishDiagnostics();
+      // 降级着法必须明示：Jev 不可用时不冒充 Jev 结果，也不显示误导性的 (0.00)
+      if (choice.source === 'fallback') {
+        this.hud.setHumanTurn('Jev 暂时不可用 · 本地兜底着法');
+      } else if (typeof confidence === 'number' && confidence > 0) {
+        this.hud.setHumanTurn(`Jev: ${key} (${confidence.toFixed(2)})`);
+      } else {
+        this.hud.setHumanTurn(`Jev: ${key}`);
+      }
+      this.refreshUndoEnabled();
+      this.publishDiagnostics(true);
     } catch (error) {
       console.error('AI 走棋处理发生异常:', error);
       // 异常兜底：把回合交还给玩家，避免永久卡死在"思考中"
@@ -424,7 +625,8 @@ export class Game {
         this.turn = 'human';
         this.aiThinkingStartTime = null;
         this.hud.setHumanTurn('AI 出错，已交还回合');
-        this.publishDiagnostics();
+        this.refreshUndoEnabled();
+        this.publishDiagnostics(true);
       }
     }
   }
@@ -469,6 +671,9 @@ export class Game {
     this.turn = 'human';
     this.winner = null;
     this.moves = 0;
+    this.moveHistory = [];
+    this.pendingSelection = null;
+    this.keyboardCell = { row: 7, col: 7 };
     this.elapsed = 0;
     this.complete = false;
     this.aiThinkingStartTime = null;
@@ -477,9 +682,87 @@ export class Game {
 
     this.boardView.reset();
     this.shakeRemaining = 0;
+    this.renderDirty = true;
     this.hud.hideGameOver();
     this.hud.setHumanTurn();
-    this.publishDiagnostics();
+    this.refreshUndoEnabled();
+    this.publishDiagnostics(true);
+  }
+
+  private canUndo(): boolean {
+    return this.turn === 'human' && this.moveHistory.some((m) => m.color === 1);
+  }
+
+  private refreshUndoEnabled(): void {
+    this.hud.setUndoEnabled(this.canUndo());
+  }
+
+  /** 悔棋：撤最近一轮（Jev 的上一手 + 玩家的上一手）；仅在玩家回合可用，避免与在途 AI 请求竞态 */
+  private undoLastRound(): void {
+    if (!this.canUndo()) {
+      return;
+    }
+    this.clearPendingSelection();
+    let removedHuman = false;
+    while (this.moveHistory.length > 0 && !removedHuman) {
+      const entry = this.moveHistory.pop()!;
+      this.board[entry.row][entry.col] = 0;
+      this.boardView.removePiece(entry.row, entry.col, entry.color);
+      this.moves -= 1;
+      if (entry.color === 1) {
+        removedHuman = true;
+      }
+    }
+    const last = this.moveHistory[this.moveHistory.length - 1];
+    this.boardView.syncLastMoveMarker(last ? { row: last.row, col: last.col } : null, last?.color ?? 1);
+    this.renderDirty = true;
+    this.hud.setHumanTurn('已悔棋 · 轮到你落子');
+    this.refreshUndoEnabled();
+    this.publishDiagnostics(true);
+  }
+
+  /** 跨局战绩：localStorage 存最近 30 局结果，终局时追加一次 */
+  private recordResult(winner: 'human' | 'ai' | 'draw'): void {
+    try {
+      const key = 'gomoku-jev-results';
+      const raw = window.localStorage.getItem(key);
+      const results: string[] = raw ? (JSON.parse(raw) as string[]) : [];
+      results.push(winner === 'human' ? 'win' : winner === 'ai' ? 'lose' : 'draw');
+      window.localStorage.setItem(key, JSON.stringify(results.slice(-30)));
+    } catch {
+      // 隐私模式等场景下 localStorage 不可用：战绩只是展示层，静默跳过
+    }
+  }
+
+  private recordText(): string {
+    try {
+      const raw = window.localStorage.getItem('gomoku-jev-results');
+      const results: string[] = raw ? (JSON.parse(raw) as string[]) : [];
+      if (results.length === 0) {
+        return '';
+      }
+      const recent = results.slice(-10);
+      const wins = recent.filter((r) => r === 'win').length;
+      const losses = recent.filter((r) => r === 'lose').length;
+      const draws = recent.length - wins - losses;
+      return `近 ${recent.length} 局 ${wins} 胜 ${losses} 负 ${draws} 和`;
+    } catch {
+      return '';
+    }
+  }
+
+  private buildMovesText(): string {
+    const parts: string[] = [];
+    for (let i = 0; i < this.moveHistory.length; i += 2) {
+      const black = this.moveHistory[i];
+      const white = this.moveHistory[i + 1];
+      let part = `${i / 2 + 1}. 黑 ${cellKey(black.row, black.col)}`;
+      if (white) {
+        part += ` · 白 ${cellKey(white.row, white.col)}`;
+      }
+      parts.push(part);
+    }
+    return parts.join('  ');
   }
 
   private simulateCompleteForTest(): void {
@@ -490,11 +773,12 @@ export class Game {
       this.board[7][c] = 1;
       this.boardView.placePiece(7, c, 1, true);
       winLine.push({ row: 7, col: c });
-    }
-
-    for (let c = 3; c <= 6; c++) {
-      this.board[8][c] = 2;
-      this.boardView.placePiece(8, c, 2, true);
+      this.moveHistory.push({ row: 7, col: c, color: 1 });
+      if (c <= 6) {
+        this.board[8][c] = 2;
+        this.boardView.placePiece(8, c, 2, true);
+        this.moveHistory.push({ row: 8, col: c, color: 2 });
+      }
     }
 
     this.moves = 9;
@@ -517,14 +801,16 @@ export class Game {
       setState: (name: string) => {
         if (name === 'active-play') {
           this.restartGame();
+          this.renderDirty = true;
           this.render();
-          this.publishDiagnostics();
+          this.publishDiagnostics(true);
           return { state: name };
         }
         if (name === 'complete') {
           this.simulateCompleteForTest();
+          this.renderDirty = true;
           this.render();
-          this.publishDiagnostics();
+          this.publishDiagnostics(true);
           return { state: name };
         }
         throw new Error(`未知测试状态: ${name}`);
@@ -534,14 +820,22 @@ export class Game {
       },
       setReducedMotion: (enabled: boolean) => {
         this.reducedMotion = enabled;
+        this.renderDirty = true;
         this.render();
-        this.publishDiagnostics();
+        this.publishDiagnostics(true);
       },
       hideDebugUi: (_hidden: boolean) => {},
     };
   }
 
-  private publishDiagnostics(): void {
+  private publishDiagnostics(force = false): void {
+    // 逐帧调用时降频到 200ms 一次，避免每帧构造诊断对象并写 window 全局；
+    // 状态变更点以 force=true 立即发布
+    const now = performance.now();
+    if (!force && now - this.lastDiagnosticsAt < 200) {
+      return;
+    }
+    this.lastDiagnosticsAt = now;
     const info = this.renderer.info;
     window.__THREE_GAME_DIAGNOSTICS__ = {
       frame: this.frame,

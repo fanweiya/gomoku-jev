@@ -577,3 +577,45 @@ export function getCandidates(board: Board, aiColor: 2, max: number = 8): Candid
 
   return candidates.slice(0, limit);
 }
+
+/**
+ * 终局棋谱文本：按每步实际 color 与落子顺序生成，不假设黑白交替。
+ * 黑步（color 1）开启新回合，白步（color 2）填入当前回合的白位；当前回合
+ * 对应颜色位已占用时另起一回合。历史上出现非交替颜色时（如 AI 出错把回合
+ * 交还人类、没有产生棋步，人类连下两手），旧的下标两两配对会把后续每一步
+ * 的黑白整体标错，这里改以 color 字段为准构造，配对错位不可能发生。
+ */
+export function formatMovesText(
+  history: readonly { row: number; col: number; color: 1 | 2 }[]
+): string {
+  const rounds: { black?: string; white?: string }[] = [];
+  for (const move of history) {
+    const cell = cellKey(move.row, move.col);
+    const current = rounds[rounds.length - 1];
+    if (move.color === 1) {
+      if (current && current.black === undefined) {
+        current.black = cell;
+      } else {
+        rounds.push({ black: cell });
+      }
+    } else {
+      if (current && current.white === undefined) {
+        current.white = cell;
+      } else {
+        rounds.push({ white: cell });
+      }
+    }
+  }
+  return rounds
+    .map((round, i) => {
+      const moves: string[] = [];
+      if (round.black !== undefined) {
+        moves.push(`黑 ${round.black}`);
+      }
+      if (round.white !== undefined) {
+        moves.push(`白 ${round.white}`);
+      }
+      return `${i + 1}. ${moves.join(' · ')}`;
+    })
+    .join('  ');
+}

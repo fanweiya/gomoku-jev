@@ -10,6 +10,7 @@ import {
   isBoardFull,
   boardToString,
   cellKey,
+  formatMovesText,
   getCandidates,
   type Board,
   type Cell,
@@ -752,17 +753,7 @@ export class Game {
   }
 
   private buildMovesText(): string {
-    const parts: string[] = [];
-    for (let i = 0; i < this.moveHistory.length; i += 2) {
-      const black = this.moveHistory[i];
-      const white = this.moveHistory[i + 1];
-      let part = `${i / 2 + 1}. 黑 ${cellKey(black.row, black.col)}`;
-      if (white) {
-        part += ` · 白 ${cellKey(white.row, white.col)}`;
-      }
-      parts.push(part);
-    }
-    return parts.join('  ');
+    return formatMovesText(this.moveHistory);
   }
 
   private simulateCompleteForTest(): void {

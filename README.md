@@ -71,6 +71,15 @@ src/
 └── core/                # Renderer / Loop 脚手架
 ```
 
+## 🧪 测试
+
+```bash
+npm test          # 单元测试（vitest）+ Playwright E2E
+npm run test:unit # 仅单元测试（GomokuCore 规则与 JevClient 降级逻辑）
+```
+
+单元测试覆盖胜负判定、坐标编解码、候选生成战术优先级，以及 AI 客户端在模型失败时的回退行为；E2E 验证真实渲染、落子交互与多指手势。
+
 ## 🛠️ 技术栈
 
 TypeScript · Vite · Three.js (`OrbitControls` / `Raycaster` / 程序化 Canvas 纹理) · Web 标准事件（Pointer/Touch）

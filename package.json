@@ -7,9 +7,10 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "playwright test",
+    "test": "npm run test:unit && playwright test",
     "verify:visual": "playwright test tests/visual.spec.ts",
-    "inspect:canvas": "node scripts/inspect-threejs-canvas.mjs"
+    "inspect:canvas": "node scripts/inspect-threejs-canvas.mjs",
+    "test:unit": "vitest run"
   },
   "dependencies": {
     "lil-gui": "^0.21.0",

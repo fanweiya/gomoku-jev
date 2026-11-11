@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  // Unit tests (*.test.ts) belong to vitest; Playwright only collects E2E specs.
+  testMatch: /.*\.spec\.ts$/,
   // One worker: parallel headless WebGL contexts contend for the GPU, and the
   // frame-time collapse makes game time drift from wall time, flaking timed
   // gameplay phases and screenshot baselines.

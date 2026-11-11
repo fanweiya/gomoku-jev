@@ -785,6 +785,8 @@ export class Game {
   }
 
   private installTestHooks(): void {
+    // 测试钩子只存在于开发构建；生产页面不暴露可改写对局状态的入口。
+    if (!import.meta.env.DEV) return;
     window.__THREE_GAME_TEST_HOOKS__ = {
       seed: (value: number) => {
         setSeed(value);
@@ -820,6 +822,8 @@ export class Game {
   }
 
   private publishDiagnostics(force = false): void {
+    // 诊断只在开发构建发布；生产环境跳过，避免保留逐帧观测入口。
+    if (!import.meta.env.DEV) return;
     // 逐帧调用时降频到 200ms 一次，避免每帧构造诊断对象并写 window 全局；
     // 状态变更点以 force=true 立即发布
     const now = performance.now();

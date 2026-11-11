@@ -7,6 +7,30 @@ function jevProxyPlugin(mode: string): Plugin {
   const handler: Connect.NextHandleFunction = (req: IncomingMessage, res: ServerResponse, next: Connect.NextFunction) => {
     const pathname = req.url ? req.url.split('?')[0] : '';
     if (req.method === 'POST' && pathname === '/api/jev') {
+      // 本地代理只接受本机访问：校验 Host 与 Origin，防止任意网页借浏览器向代理发起请求。
+      const host = req.headers.host || '';
+      if (!/^(127\.0\.0\.1|\[::1\]|localhost)(:\d+)?$/.test(host)) {
+        res.statusCode = 403;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'forbidden host' }));
+        return;
+      }
+      const origin = req.headers.origin;
+      if (origin) {
+        try {
+          if (new URL(origin).host !== host) {
+            res.statusCode = 403;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'forbidden origin' }));
+            return;
+          }
+        } catch {
+          res.statusCode = 403;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'forbidden origin' }));
+          return;
+        }
+      }
       const env = loadEnv(mode, process.cwd(), '');
       const apiKey = env.JEV_API_KEY || process.env.JEV_API_KEY;
 
@@ -18,11 +42,25 @@ function jevProxyPlugin(mode: string): Plugin {
       }
 
       const chunks: Buffer[] = [];
+      let totalBytes = 0;
+      let tooLarge = false;
       req.on('data', (chunk: Buffer) => {
+        totalBytes += chunk.length;
+        if (totalBytes > 256 * 1024) {
+          tooLarge = true;
+          chunks.length = 0;
+          return;
+        }
         chunks.push(chunk);
       });
 
       req.on('end', async () => {
+        if (tooLarge) {
+          res.statusCode = 413;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'request body too large' }));
+          return;
+        }
         try {
           const rawBody = Buffer.concat(chunks).toString('utf-8');
           const upstreamResponse = await fetch('https://api.typesafe.ai/v1/systemone', {

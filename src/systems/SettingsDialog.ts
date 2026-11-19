@@ -12,7 +12,7 @@ export class SettingsDialog {
   private readonly closeBtn: HTMLButtonElement;
   private readonly cancelBtn: HTMLButtonElement;
   private readonly testBtn: HTMLButtonElement;
-  private readonly fillPresetKeyBtn: HTMLButtonElement;
+  private readonly keyLink: HTMLAnchorElement;
   private readonly toggleKeyBtn: HTMLButtonElement;
   private readonly form: HTMLFormElement;
   private readonly providerSelect: HTMLSelectElement;
@@ -32,7 +32,7 @@ export class SettingsDialog {
     this.closeBtn = this.getRequiredElement<HTMLButtonElement>('#settings-close-btn');
     this.cancelBtn = this.getRequiredElement<HTMLButtonElement>('#cfg-cancel-btn');
     this.testBtn = this.getRequiredElement<HTMLButtonElement>('#cfg-test-btn');
-    this.fillPresetKeyBtn = this.getRequiredElement<HTMLButtonElement>('#cfg-fill-preset-key-btn');
+    this.keyLink = this.getRequiredElement<HTMLAnchorElement>('#cfg-key-link');
     this.toggleKeyBtn = this.getRequiredElement<HTMLButtonElement>('#cfg-toggle-key-btn');
     this.form = this.getRequiredElement<HTMLFormElement>('#settings-form');
     this.providerSelect = this.getRequiredElement<HTMLSelectElement>('#cfg-provider');
@@ -72,7 +72,6 @@ export class SettingsDialog {
     this.cancelBtn.removeEventListener('click', this.handleCloseClick);
     this.form.removeEventListener('submit', this.handleFormSubmit);
     this.providerSelect.removeEventListener('change', this.handleProviderChange);
-    this.fillPresetKeyBtn.removeEventListener('click', this.handleFillPresetKey);
     this.toggleKeyBtn.removeEventListener('click', this.handleToggleKeyVisibility);
     this.testBtn.removeEventListener('click', this.handleTestConnection);
     window.removeEventListener('keydown', this.handleWindowKeydown);
@@ -94,7 +93,6 @@ export class SettingsDialog {
     this.cancelBtn.addEventListener('click', this.handleCloseClick);
     this.form.addEventListener('submit', this.handleFormSubmit);
     this.providerSelect.addEventListener('change', this.handleProviderChange);
-    this.fillPresetKeyBtn.addEventListener('click', this.handleFillPresetKey);
     this.toggleKeyBtn.addEventListener('click', this.handleToggleKeyVisibility);
     this.testBtn.addEventListener('click', this.handleTestConnection);
     window.addEventListener('keydown', this.handleWindowKeydown);
@@ -127,6 +125,7 @@ export class SettingsDialog {
 
     const currentPreset = PROVIDER_PRESETS.find((p) => p.id === config.providerId);
     this.updateModelOptions(currentPreset?.models || []);
+    this.updateWebsiteLink(currentPreset?.websiteUrl);
   }
 
   private updateModelOptions(models: string[]): void {
@@ -135,6 +134,15 @@ export class SettingsDialog {
       const opt = document.createElement('option');
       opt.value = m;
       this.modelList.appendChild(opt);
+    }
+  }
+
+  private updateWebsiteLink(url?: string): void {
+    if (url) {
+      this.keyLink.href = url;
+      this.keyLink.style.display = 'inline';
+    } else {
+      this.keyLink.style.display = 'none';
     }
   }
 
@@ -149,6 +157,7 @@ export class SettingsDialog {
       this.endpointInput.value = preset.endpoint;
       this.modelInput.value = preset.defaultModel;
       this.updateModelOptions(preset.models);
+      this.updateWebsiteLink(preset.websiteUrl);
       this.headersInput.value =
         Object.keys(preset.customHeaders).length > 0
           ? JSON.stringify(preset.customHeaders)
@@ -158,18 +167,8 @@ export class SettingsDialog {
       }
     } else {
       this.updateModelOptions([]);
+      this.updateWebsiteLink(undefined);
       this.setStatus('自定义通道：可自主输入接口地址、模型与密钥。', 'info');
-    }
-  };
-
-  private readonly handleFillPresetKey = (): void => {
-    const selectedId = this.providerSelect.value;
-    const preset = PROVIDER_PRESETS.find((p) => p.id === selectedId);
-    if (preset && preset.defaultKey) {
-      this.keyInput.value = preset.defaultKey;
-      this.setStatus('已填入预设密钥', 'success');
-    } else {
-      this.setStatus('当前通道无预设密钥，请手动输入。', 'info');
     }
   };
 

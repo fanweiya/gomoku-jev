@@ -11,13 +11,13 @@
 ## ✨ 特性
 
 - 🌐 **在线即玩**：已部署至 Cloudflare Pages，无需在服务端配置密钥，打开页面即可直接体验。
-- ⚙️ **多服务通道支持**：内置主流通道预设，支持在界面中直接切换、一键导入预设 Key 或输入自定义密钥：
-  1. **SubQ (System One)**：接口 `https://api.subq.ai/v1/systemone`，默认模型 `subq-snap-1.1`
-  2. **TypeSafe Jev (官方原版通道)**：接口 `https://api.typesafe.ai/v1/systemone`，默认模型 `jev-preview`，支持专用请求头
-  3. **Codiv OpenJev (开源权重通道)**：接口 `https://api.codiv.ai/v1/systemone`，默认模型 `openjev-latest`，自动附加浏览器 User-Agent
-  4. **Cloudflare Workers AI Clef (边缘计算兜底)**：接口 `https://api.cloudflare.com/...`，默认模型 `clef-flash`
-  5. **MeraGPT**：接口 `https://meragpt.com/v1/systemone`，默认模型 `meragpt-latest`
-  6. **Nace AI**：接口 `https://console.nace.ai/v1/systemone`，默认模型 `nace-latest`
+- ⚙️ **多服务通道支持**：内置主流通道预设，支持在界面中直接切换各通道、直达官网申请获取 API Key 并输入自己的密钥进行对弈：
+  1. **SubQ (System One)**：接口 `https://api.subq.ai/v1/systemone`，默认模型 `subq-snap-1.1`（官网：[https://subq.ai](https://subq.ai)）
+  2. **TypeSafe Jev (官方原版通道)**：接口 `https://api.typesafe.ai/v1/systemone`，默认模型 `jev-preview`，支持专用请求头（控制台：[https://console.typesafe.ai](https://console.typesafe.ai)）
+  3. **Codiv OpenJev (开源权重通道)**：接口 `https://api.codiv.ai/v1/systemone`，默认模型 `openjev-latest`，自动附加浏览器 User-Agent（官网：[https://codiv.ai](https://codiv.ai)）
+  4. **Cloudflare Workers AI Clef (边缘计算兜底)**：接口 `https://api.cloudflare.com/...`，默认模型 `clef-flash`（控制台：[Cloudflare Dashboard](https://dash.cloudflare.com)）
+  5. **MeraGPT**：接口 `https://meragpt.com/v1/systemone`，默认模型 `meragpt-latest`（官网：[https://meragpt.com](https://meragpt.com)）
+  6. **Nace AI**：接口 `https://console.nace.ai/v1/systemone`，默认模型 `nace-latest`（控制台：[https://console.nace.ai](https://console.nace.ai)）
   7. **自定义通道 (Custom)**：可自主配置任意兼容接口、模型名称与请求密钥
 - 🧪 **连接测试**：设置界面提供一键「测试连接」功能，实时验证接口连通性与模型可用状态。
 - 🔒 **本地私密存储**：配置与密钥仅保存在当前浏览器的本地存储中，保障数据隐私。

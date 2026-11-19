@@ -149,9 +149,9 @@ export class Game {
     if (bgmBtn) {
       bgmBtn.addEventListener('click', () => {
         const active = this.bgmSynth.toggle();
-        bgmBtn.textContent = active ? '🎵 音乐: 开' : '🎵 音乐: 关';
+        bgmBtn.textContent = active ? '🎵 高山流水: 开' : '🎵 高山流水: 关';
       });
-      bgmBtn.textContent = this.bgmSynth.active ? '🎵 音乐: 开' : '🎵 音乐: 关';
+      bgmBtn.textContent = this.bgmSynth.active ? '🎵 高山流水: 开' : '🎵 高山流水: 关';
     }
 
     const initialConfig = loadAiConfig();

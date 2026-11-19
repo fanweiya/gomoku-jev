@@ -26,9 +26,59 @@ body[data-theme="light"] {
   --color-text-muted: rgba(36, 32, 28, 0.68);
   --color-gold: #b37e1a;
   --color-cyan: #267a6d;
-  --color-card-bg: rgba(255, 253, 247, 0.92);
+  --color-card-bg: rgba(255, 253, 247, 0.96);
   --color-card-border: rgba(36, 32, 28, 0.18);
   --color-card-border-active: #b37e1a;
+}
+
+body[data-theme="light"] .overlay-dialog {
+  background: rgba(255, 253, 247, 0.98);
+  border: 1px solid rgba(36, 32, 28, 0.18);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.18),
+    0 0 28px rgba(179, 126, 26, 0.12);
+  color: var(--color-text-main);
+}
+
+body[data-theme="light"] .overlay-title {
+  color: var(--color-text-main);
+}
+
+body[data-theme="light"] .form-input,
+body[data-theme="light"] .form-select {
+  background: #ffffff;
+  border: 1px solid rgba(36, 32, 28, 0.22);
+  color: var(--color-text-main);
+}
+
+body[data-theme="light"] .form-select option {
+  background: #ffffff;
+  color: var(--color-text-main);
+}
+
+body[data-theme="light"] .btn-icon-inside {
+  background: rgba(36, 32, 28, 0.08);
+  border: 1px solid rgba(36, 32, 28, 0.18);
+  color: var(--color-text-main);
+}
+
+body[data-theme="light"] .btn-secondary {
+  background: rgba(36, 32, 28, 0.08);
+  border: 1px solid rgba(36, 32, 28, 0.2);
+  color: var(--color-text-main);
+}
+
+body[data-theme="light"] .btn-secondary:hover {
+  background: rgba(36, 32, 28, 0.14);
+}
+
+body[data-theme="light"] .btn-close-x {
+  color: var(--color-text-muted);
+}
+
+body[data-theme="light"] .btn-close-x:hover {
+  color: var(--color-text-main);
+  background: rgba(36, 32, 28, 0.08);
 }
 
 * {
@@ -231,13 +281,14 @@ body,
   padding: 32px 36px;
   min-width: 280px;
   max-width: 400px;
-  background: rgba(22, 25, 29, 0.94);
-  border: 1px solid rgba(246, 241, 223, 0.2);
+  background: var(--color-card-bg);
+  border: 1px solid var(--color-card-border);
   border-radius: 20px;
   box-shadow:
     0 16px 40px rgba(0, 0, 0, 0.6),
     0 0 28px rgba(245, 186, 73, 0.15);
   animation: dialogPop 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  color: var(--color-text-main);
 }
 
 @keyframes dialogPop {
@@ -268,7 +319,7 @@ body,
   margin: 0;
   font-size: 2rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--color-text-main);
   letter-spacing: 0.02em;
 }
 

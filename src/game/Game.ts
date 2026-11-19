@@ -4,6 +4,7 @@ import { Loop } from '../core/Loop';
 import { createRenderer, resizeRenderer } from '../core/Renderer';
 import { BoardView, type GridIntersection } from '../entities/BoardView';
 import { Hud } from '../systems/Hud';
+import { SettingsDialog } from '../systems/SettingsDialog';
 import {
   createBoard,
   checkWin,
@@ -16,6 +17,7 @@ import {
   type Cell,
 } from './GomokuCore';
 import { chooseAiMove } from './JevClient';
+import { loadAiConfig } from './AiConfig';
 import { disposeObject3D } from '../utils/dispose';
 import { getRandom, setSeed } from '../utils/random';
 
@@ -24,6 +26,7 @@ export class Game {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(46, 1, 0.1, 100);
   private readonly hud = new Hud();
+  private readonly settingsDialog = new SettingsDialog();
   private readonly boardView = new BoardView();
   private readonly loop = new Loop(
     (delta, elapsed) => this.update(delta, elapsed),
@@ -113,11 +116,17 @@ export class Game {
     this.hud.setFocusReturn(this.canvas);
     this.hud.setCameraHintText(
       window.matchMedia('(pointer: coarse)').matches
-        ? '拖动旋转 · 双指缩放 · 连点两下同一交叉点落子'
-        : '拖动旋转 360° · 滚轮/双指缩放 · 点击交叉点落子',
+        ? '拖动旋转 · 双指缩放 · 连点两下同一交叉点下子'
+        : '拖动旋转 360° · 滚轮/双指缩放 · 点击交叉点下子',
     );
     this.hud.setUndoEnabled(false);
     this.hud.setHumanTurn();
+
+    const initialConfig = loadAiConfig();
+    this.hud.setAiPlayerLabel(`${initialConfig.shortName || 'Jev AI'} · 白`, initialConfig.shortName);
+    this.settingsDialog.onConfigSaved((cfg) => {
+      this.hud.setAiPlayerLabel(`${cfg.shortName || 'Jev AI'} · 白`, cfg.shortName);
+    });
 
     resizeRenderer(this.renderer, this.camera, 2);
     this.installTestHooks();
@@ -139,6 +148,7 @@ export class Game {
     this.controls.dispose();
     window.removeEventListener('resize', this.onWindowResize);
     this.hud.dispose();
+    this.settingsDialog.dispose();
     this.boardView.dispose();
     // 释放 createScene() 中直接挂在 scene 上的 table/灯光（boardView 已自行释放，重复 dispose 安全）
     disposeObject3D(this.scene);
@@ -343,7 +353,7 @@ export class Game {
     this.pendingSelection = cell;
     this.boardView.showGhostSelected(cell.row, cell.col);
     this.renderDirty = true;
-    this.hud.setHint(`已选 ${cellKey(cell.row, cell.col)} · 再点一次落子`);
+    this.hud.setHint(`已选 ${cellKey(cell.row, cell.col)} · 再点一次下子`);
   }
 
   private clearPendingSelection(): void {
@@ -391,7 +401,7 @@ export class Game {
     }
 
     if (this.turn === 'ai') {
-      this.showHintThrottled('等 Jev 落子后轮到你');
+      this.showHintThrottled('等 AI 下子后轮到你');
       return;
     }
     if (this.turn !== 'human') {
@@ -450,7 +460,7 @@ export class Game {
       case ' ':
         event.preventDefault();
         if (this.turn === 'ai') {
-          this.showHintThrottled('等 Jev 落子后轮到你');
+          this.showHintThrottled('等 AI 下子后轮到你');
           return;
         }
         if (this.turn !== 'human') {
@@ -717,7 +727,7 @@ export class Game {
     const last = this.moveHistory[this.moveHistory.length - 1];
     this.boardView.syncLastMoveMarker(last ? { row: last.row, col: last.col } : null, last?.color ?? 1);
     this.renderDirty = true;
-    this.hud.setHumanTurn('已悔棋 · 轮到你落子');
+    this.hud.setHumanTurn('已悔棋 · 轮到你下子');
     this.refreshUndoEnabled();
     this.publishDiagnostics(true);
   }

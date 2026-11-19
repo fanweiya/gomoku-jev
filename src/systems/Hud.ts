@@ -6,6 +6,7 @@ export interface GameOverExtras {
 export class Hud {
   private readonly playerHuman = this.getElement('#player-human');
   private readonly playerAi = this.getElement('#player-ai');
+  private readonly aiPlayerLabel = this.getElement('#ai-player-label');
   private readonly statusPanel = this.getElement('.status-panel');
   private readonly statusText = this.getElement('#status-text');
   private readonly subStatus = this.getElement('#sub-status');
@@ -31,6 +32,7 @@ export class Hud {
   private overlayTimer: ReturnType<typeof setTimeout> | null = null;
   private longPressTimer: ReturnType<typeof setTimeout> | null = null;
   private lastAiThinkingSeconds = -1;
+  private aiDisplayName = 'Jev';
 
   constructor() {
     this.restartBtn.addEventListener('click', this.handleRestartClick);
@@ -66,6 +68,13 @@ export class Hud {
     (this.undoBtn as HTMLButtonElement).disabled = !enabled;
   }
 
+  setAiPlayerLabel(text: string, shortName?: string): void {
+    this.aiPlayerLabel.textContent = text;
+    if (shortName) {
+      this.aiDisplayName = shortName;
+    }
+  }
+
   setHumanTurn(lastMoveInfo?: string): void {
     this.lastAiThinkingSeconds = -1;
     this.playerHuman.classList.add('active');
@@ -75,14 +84,13 @@ export class Hud {
   }
 
   setAiThinking(seconds: number): void {
-    // 每帧都会被调用：秒数没变就不重复写 DOM
     if (seconds === this.lastAiThinkingSeconds) {
       return;
     }
     this.lastAiThinkingSeconds = seconds;
     this.playerHuman.classList.remove('active');
     this.playerAi.classList.add('active');
-    this.statusText.textContent = `Jev 思考中… ${seconds}s`;
+    this.statusText.textContent = `${this.aiDisplayName} 思考中… ${seconds}s`;
     this.subStatus.textContent = '正在计算最佳步骤';
   }
 
@@ -114,10 +122,10 @@ export class Hud {
       this.subStatus.textContent = '你赢了';
     } else if (winner === 'ai') {
       this.overlay.classList.add('result-lose');
-      this.overlayTitle.textContent = 'Jev 获胜';
+      this.overlayTitle.textContent = `${this.aiDisplayName} 获胜`;
       this.overlayDesc.textContent = `共 ${movesCount} 手 · 执白连五获胜`;
       this.statusText.textContent = '对局结束';
-      this.subStatus.textContent = 'Jev 获胜';
+      this.subStatus.textContent = `${this.aiDisplayName} 获胜`;
     } else {
       this.overlay.classList.add('result-draw');
       this.overlayTitle.textContent = '和棋';

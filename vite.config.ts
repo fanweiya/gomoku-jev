@@ -32,12 +32,17 @@ function jevProxyPlugin(mode: string): Plugin {
         }
       }
       const env = loadEnv(mode, process.cwd(), '');
-      const apiKey = env.JEV_API_KEY || process.env.JEV_API_KEY;
+      const clientEndpoint = req.headers['x-jev-endpoint'] as string | undefined;
+      const clientApiKey = req.headers['x-jev-api-key'] as string | undefined;
+      const clientCustomHeadersRaw = req.headers['x-jev-custom-headers'] as string | undefined;
+
+      const targetUrl = clientEndpoint || 'https://api.typesafe.ai/v1/systemone';
+      const apiKey = clientApiKey || env.JEV_API_KEY || process.env.JEV_API_KEY || env.TYPESAFE_API_KEY || '';
 
       if (!apiKey) {
-        res.statusCode = 500;
+        res.statusCode = 401;
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: 'missing JEV_API_KEY' }));
+        res.end(JSON.stringify({ error: 'missing API key, fallback to local heuristic' }));
         return;
       }
 
@@ -63,12 +68,31 @@ function jevProxyPlugin(mode: string): Plugin {
         }
         try {
           const rawBody = Buffer.concat(chunks).toString('utf-8');
-          const upstreamResponse = await fetch('https://api.typesafe.ai/v1/systemone', {
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          };
+
+          if (clientCustomHeadersRaw) {
+            try {
+              const parsed = JSON.parse(clientCustomHeadersRaw);
+              for (const [k, v] of Object.entries(parsed)) {
+                if (typeof v === 'string') {
+                  headers[k] = v;
+                }
+              }
+            } catch {
+              // Ignore invalid json
+            }
+          }
+
+          if (targetUrl.includes('codiv.ai') && !headers['User-Agent']) {
+            headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+          }
+
+          const upstreamResponse = await fetch(targetUrl, {
             method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
+            headers,
             body: rawBody,
             signal: AbortSignal.timeout(10000),
           });

@@ -118,6 +118,31 @@ export function boardToString(board: Board): string {
   return lines.join('\n');
 }
 
+export function formatBoardWithCoordinates(board: Board): string {
+  if (!Array.isArray(board)) {
+    return '';
+  }
+  const cols = '   A B C D E F G H I J K L M N O';
+  const lines: string[] = [cols];
+  for (let r = 0; r < SIZE; r++) {
+    const rowNum = (r + 1).toString().padStart(2, '0');
+    const row = board[r];
+    const cells: string[] = [];
+    for (let c = 0; c < SIZE; c++) {
+      const cell = row ? row[c] : 0;
+      if (cell === 1) {
+        cells.push('X');
+      } else if (cell === 2) {
+        cells.push('O');
+      } else {
+        cells.push('.');
+      }
+    }
+    lines.push(`${rowNum} ${cells.join(' ')}`);
+  }
+  return lines.join('\n');
+}
+
 export interface Candidate {
   row: number;
   col: number;

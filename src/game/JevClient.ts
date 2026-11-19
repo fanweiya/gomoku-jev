@@ -14,11 +14,13 @@ export interface CandidateMove {
   col: number;
   key: string;
   description: string;
+  score?: number;
 }
 
 export async function chooseAiMove(
   boardString: string,
-  candidates: { row: number; col: number; key: string; description: string; }[]
+  candidates: CandidateMove[],
+  moveHistory?: { row: number; col: number; color: 1 | 2 }[]
 ): Promise<MoveChoice> {
   if (!candidates || candidates.length === 0) {
     return {
@@ -53,12 +55,20 @@ export async function chooseAiMove(
       criteria[item.key] = item.description || item.key;
     }
 
+    const recentStr = moveHistory && moveHistory.length > 0
+      ? moveHistory.slice(-5).map(m => (m.color === 1 ? '黑' : '白') + `(${String.fromCharCode(65 + m.col)}${m.row + 1})`).join(' -> ')
+      : '';
+    const desc = recentStr
+      ? `五子棋对局：AI执白棋(O)，人类玩家执黑棋(X)。最近落子时序: ${recentStr}`
+      : '五子棋对局：AI执白棋后手，人类玩家执黑棋先手刚完成下子';
+
     const payload = {
       model: config.model || 'jev-latest',
       state: {
         board_size: 15,
         board: boardString,
-        description: '五子棋对局：AI执白棋后手，人类玩家执黑棋先手刚完成下子',
+        description: desc,
+        recent_moves: recentStr || undefined,
         candidate_keys: candidates.map((item) => item.key),
         candidates: candidates.map((item) => ({
           row: item.row,

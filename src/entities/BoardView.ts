@@ -218,9 +218,9 @@ export class BoardView {
         mesh,
         start: spawn.clone(),
         target: new THREE.Vector3(posX, targetY, posZ),
-        arcHeight: 2.2,
+        arcHeight: 3.6,
         progress: 0,
-        duration: 0.42,
+        duration: 0.65,
       });
     }
 
@@ -437,7 +437,7 @@ export class BoardView {
   private createBowls(): void {
     const tableY = -this.boardHeight;
 
-    const offset = this.boardWidth / 2 + 2.6;
+    const offset = this.boardWidth / 2 + 1.8;
     const setups: { x: number; stoneMat: THREE.MeshStandardMaterial; color: 1 | 2 }[] = [
       { x: -offset, stoneMat: this.blackMaterial, color: 1 },
       { x: offset, stoneMat: this.whiteMaterial, color: 2 },

@@ -5,11 +5,12 @@ import { createRenderer, resizeRenderer } from '../core/Renderer';
 import { BoardView, type GridIntersection } from '../entities/BoardView';
 import { Hud } from '../systems/Hud';
 import { SettingsDialog } from '../systems/SettingsDialog';
+import { AncientBgmSynth } from '../systems/BgmSynth';
 import {
   createBoard,
   checkWin,
   isBoardFull,
-  boardToString,
+  formatBoardWithCoordinates,
   cellKey,
   formatMovesText,
   getCandidates,
@@ -80,9 +81,22 @@ export class Game {
   private controlsMoved = false;
   private lastDiagnosticsAt = 0;
 
+  private tableMesh: THREE.Mesh | null = null;
+  private hemisphereLight: THREE.HemisphereLight | null = null;
+  private sunLight: THREE.DirectionalLight | null = null;
+  private rimLight: THREE.DirectionalLight | null = null;
+  private currentTheme: 'dark' | 'light' = 'dark';
+  private readonly bgmSynth = new AncientBgmSynth();
+
   private readonly reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
   constructor(private readonly canvas: HTMLCanvasElement) {
+    const savedTheme = localStorage.getItem('gomoku_theme');
+    if (savedTheme === 'light' || savedTheme === 'dark') {
+      this.currentTheme = savedTheme;
+    }
+    document.body.setAttribute('data-theme', this.currentTheme);
+
     this.renderer = createRenderer(canvas);
     this.camera.position.set(0, 16.5, 12.8);
 
@@ -104,8 +118,8 @@ export class Game {
     this.controls.addEventListener('start', () => { this.userMovedCamera = true; });
     window.addEventListener('resize', this.onWindowResize);
 
-    // 动态效果降级跟随系统偏好；测试钩子仍可覆盖
-    this.reducedMotion = this.reducedMotionQuery.matches;
+    const userReducedPref = localStorage.getItem('gomoku_reduced_motion');
+    this.reducedMotion = userReducedPref === 'true';
     this.reducedMotionQuery.addEventListener('change', this.onReducedMotionChange);
 
     this.createScene();
@@ -121,6 +135,24 @@ export class Game {
     );
     this.hud.setUndoEnabled(false);
     this.hud.setHumanTurn();
+
+    const themeBtn = document.getElementById('theme-btn');
+    if (themeBtn) {
+      themeBtn.addEventListener('click', () => {
+        this.toggleTheme();
+        themeBtn.textContent = this.currentTheme === 'light' ? '☀️ 明亮' : '🌙 暗色';
+      });
+      themeBtn.textContent = this.currentTheme === 'light' ? '☀️ 明亮' : '🌙 暗色';
+    }
+
+    const bgmBtn = document.getElementById('bgm-btn');
+    if (bgmBtn) {
+      bgmBtn.addEventListener('click', () => {
+        const active = this.bgmSynth.toggle();
+        bgmBtn.textContent = active ? '🎵 音乐: 开' : '🎵 音乐: 关';
+      });
+      bgmBtn.textContent = this.bgmSynth.active ? '🎵 音乐: 开' : '🎵 音乐: 关';
+    }
 
     const initialConfig = loadAiConfig();
     this.hud.setAiPlayerLabel(`${initialConfig.shortName || 'Jev AI'} · 白`, initialConfig.shortName);
@@ -244,38 +276,78 @@ export class Game {
   }
 
   private createScene(): void {
-    this.scene.background = new THREE.Color('#111312');
+    const isLight = this.currentTheme === 'light';
+    this.scene.background = new THREE.Color(isLight ? '#ece7dc' : '#111312');
 
-    const hemisphere = new THREE.HemisphereLight('#f5efe6', '#1d2024', 1.6);
-    this.scene.add(hemisphere);
-
-    const sun = new THREE.DirectionalLight('#fff2d8', 2.4);
-    sun.position.set(-7, 16, 9);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.near = 0.5;
-    sun.shadow.camera.far = 36;
-    sun.shadow.camera.left = -15;
-    sun.shadow.camera.right = 15;
-    sun.shadow.camera.top = 15;
-    sun.shadow.camera.bottom = -15;
-    this.scene.add(sun);
-
-    const rimLight = new THREE.DirectionalLight('#7fa4ba', 0.45);
-    rimLight.position.set(8, 8, -8);
-    this.scene.add(rimLight);
-
-    // 深色木桌面，承接棋盘与棋罐的投影
-    const table = new THREE.Mesh(
-      new THREE.PlaneGeometry(80, 80),
-      new THREE.MeshStandardMaterial({ color: '#1a1512', roughness: 0.92, metalness: 0.02 }),
+    this.hemisphereLight = new THREE.HemisphereLight(
+      isLight ? '#ffffff' : '#f5efe6',
+      isLight ? '#a89f91' : '#1d2024',
+      isLight ? 2.0 : 1.6
     );
-    table.rotation.x = -Math.PI / 2;
-    table.position.y = -0.7;
-    table.receiveShadow = true;
-    this.scene.add(table);
+    this.scene.add(this.hemisphereLight);
+
+    this.sunLight = new THREE.DirectionalLight(isLight ? '#fff8ea' : '#fff2d8', isLight ? 2.6 : 2.4);
+    this.sunLight.position.set(-7, 16, 9);
+    this.sunLight.castShadow = true;
+    this.sunLight.shadow.mapSize.set(2048, 2048);
+    this.sunLight.shadow.camera.near = 0.5;
+    this.sunLight.shadow.camera.far = 36;
+    this.sunLight.shadow.camera.left = -15;
+    this.sunLight.shadow.camera.right = 15;
+    this.sunLight.shadow.camera.top = 15;
+    this.sunLight.shadow.camera.bottom = -15;
+    this.scene.add(this.sunLight);
+
+    this.rimLight = new THREE.DirectionalLight(isLight ? '#9fc2d6' : '#7fa4ba', isLight ? 0.6 : 0.45);
+    this.rimLight.position.set(8, 8, -8);
+    this.scene.add(this.rimLight);
+
+    // 桌面承接棋盘与棋罐投影
+    this.tableMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(80, 80),
+      new THREE.MeshStandardMaterial({
+        color: isLight ? '#dcd5c7' : '#1a1512',
+        roughness: 0.92,
+        metalness: 0.02
+      }),
+    );
+    this.tableMesh.rotation.x = -Math.PI / 2;
+    this.tableMesh.position.y = -0.7;
+    this.tableMesh.receiveShadow = true;
+    this.scene.add(this.tableMesh);
 
     this.scene.add(this.boardView.group);
+  }
+
+  public toggleTheme(): void {
+    this.setTheme(this.currentTheme === 'dark' ? 'light' : 'dark');
+  }
+
+  public setTheme(theme: 'dark' | 'light'): void {
+    this.currentTheme = theme;
+    localStorage.setItem('gomoku_theme', theme);
+    document.body.setAttribute('data-theme', theme);
+
+    const isLight = theme === 'light';
+    this.scene.background = new THREE.Color(isLight ? '#ece7dc' : '#111312');
+    if (this.hemisphereLight) {
+      this.hemisphereLight.color.set(isLight ? '#ffffff' : '#f5efe6');
+      this.hemisphereLight.groundColor.set(isLight ? '#a89f91' : '#1d2024');
+      this.hemisphereLight.intensity = isLight ? 2.0 : 1.6;
+    }
+    if (this.sunLight) {
+      this.sunLight.color.set(isLight ? '#fff8ea' : '#fff2d8');
+      this.sunLight.intensity = isLight ? 2.6 : 2.4;
+    }
+    if (this.rimLight) {
+      this.rimLight.color.set(isLight ? '#9fc2d6' : '#7fa4ba');
+      this.rimLight.intensity = isLight ? 0.6 : 0.45;
+    }
+    if (this.tableMesh) {
+      const mat = this.tableMesh.material as THREE.MeshStandardMaterial;
+      mat.color.set(isLight ? '#dcd5c7' : '#1a1512');
+    }
+    this.renderDirty = true;
   }
 
   private setupEvents(): void {
@@ -558,77 +630,32 @@ export class Game {
   private async executeAiTurn(generation: number): Promise<void> {
     try {
       const candidates = getCandidates(this.board, 2);
-      const boardString = boardToString(this.board);
-      const choice = await chooseAiMove(boardString, candidates);
+      if (candidates.length === 0) {
+        return;
+      }
+
+      // 混合决策保护架构：
+      // 当最高评分候选点具备绝对战术杀招或阻截（评分 >= 1,000,000，如自身连五、封堵对方活四/连五），
+      // 直接执行本地最优解，消除大语言模型幻觉导致失误的风险。
+      if (candidates[0].score >= 1_000_000) {
+        if (this.turn !== 'ai' || generation !== this.aiGeneration) {
+          return;
+        }
+        const best = candidates[0];
+        this.applyAiMove(best.row, best.col, best.key, 1.0, 'rule');
+        return;
+      }
+
+      const boardString = formatBoardWithCoordinates(this.board);
+      const choice = await chooseAiMove(boardString, candidates, this.moveHistory);
 
       // 双重过期校验：回合已变，或请求代际已过期（重开新局），都直接丢弃
       if (this.turn !== 'ai' || generation !== this.aiGeneration) {
         return;
       }
 
-      const { row, col, key, confidence } = choice;
-      // 校验 AI 返回坐标合法性，非法时抛错走下方 catch 兜底（交还回合给玩家）
-      const size = this.board.length;
-      if (
-        !Number.isInteger(row) ||
-        !Number.isInteger(col) ||
-        row < 0 ||
-        row >= size ||
-        col < 0 ||
-        col >= size
-      ) {
-        throw new Error(`AI 返回非法坐标: (${row}, ${col})`);
-      }
-      this.board[row][col] = 2;
-      this.moves += 1;
-      this.moveHistory.push({ row, col, color: 2 });
-      this.boardView.placePiece(row, col, 2, this.reducedMotion);
-      this.renderDirty = true;
-
-      if (checkWin(this.board, row, col)) {
-        this.winner = 'ai';
-        this.turn = 'over';
-        this.complete = true;
-        const line = this.findWinningLine(row, col, 2);
-        this.boardView.highlightWinningPieces(line);
-        this.boardView.celebrate(line, this.reducedMotion);
-        this.triggerShake('lose');
-        this.recordResult('ai');
-        this.hud.showGameOver('ai', this.moves, {
-          recordText: this.recordText(),
-          movesText: this.buildMovesText(),
-        });
-        this.refreshUndoEnabled();
-        this.publishDiagnostics(true);
-        return;
-      }
-
-      if (isBoardFull(this.board)) {
-        this.winner = 'draw';
-        this.turn = 'over';
-        this.complete = true;
-        this.recordResult('draw');
-        this.hud.showGameOver('draw', this.moves, {
-          recordText: this.recordText(),
-          movesText: this.buildMovesText(),
-        });
-        this.refreshUndoEnabled();
-        this.publishDiagnostics(true);
-        return;
-      }
-
-      this.turn = 'human';
-      this.aiThinkingStartTime = null;
-      // 降级着法必须明示：Jev 不可用时不冒充 Jev 结果，也不显示误导性的 (0.00)
-      if (choice.source === 'fallback') {
-        this.hud.setHumanTurn('Jev 暂时不可用 · 本地兜底着法');
-      } else if (typeof confidence === 'number' && confidence > 0) {
-        this.hud.setHumanTurn(`Jev: ${key} (${confidence.toFixed(2)})`);
-      } else {
-        this.hud.setHumanTurn(`Jev: ${key}`);
-      }
-      this.refreshUndoEnabled();
-      this.publishDiagnostics(true);
+      const { row, col, key, confidence, source } = choice;
+      this.applyAiMove(row, col, key, confidence, source);
     } catch (error) {
       console.error('AI 走棋处理发生异常:', error);
       // 异常兜底：把回合交还给玩家，避免永久卡死在"思考中"
@@ -640,6 +667,77 @@ export class Game {
         this.publishDiagnostics(true);
       }
     }
+  }
+
+  private applyAiMove(
+    row: number,
+    col: number,
+    key: string,
+    confidence: number,
+    source: 'jev' | 'fallback' | 'rule'
+  ): void {
+    const size = this.board.length;
+    if (
+      !Number.isInteger(row) ||
+      !Number.isInteger(col) ||
+      row < 0 ||
+      row >= size ||
+      col < 0 ||
+      col >= size
+    ) {
+      throw new Error(`AI 返回非法坐标: (${row}, ${col})`);
+    }
+    this.board[row][col] = 2;
+    this.moves += 1;
+    this.moveHistory.push({ row, col, color: 2 });
+    this.boardView.placePiece(row, col, 2, this.reducedMotion);
+    this.renderDirty = true;
+
+    if (checkWin(this.board, row, col)) {
+      this.winner = 'ai';
+      this.turn = 'over';
+      this.complete = true;
+      const line = this.findWinningLine(row, col, 2);
+      this.boardView.highlightWinningPieces(line);
+      this.boardView.celebrate(line, this.reducedMotion);
+      this.triggerShake('lose');
+      this.recordResult('ai');
+      this.hud.showGameOver('ai', this.moves, {
+        recordText: this.recordText(),
+        movesText: this.buildMovesText(),
+      });
+      this.refreshUndoEnabled();
+      this.publishDiagnostics(true);
+      return;
+    }
+
+    if (isBoardFull(this.board)) {
+      this.winner = 'draw';
+      this.turn = 'over';
+      this.complete = true;
+      this.recordResult('draw');
+      this.hud.showGameOver('draw', this.moves, {
+        recordText: this.recordText(),
+        movesText: this.buildMovesText(),
+      });
+      this.refreshUndoEnabled();
+      this.publishDiagnostics(true);
+      return;
+    }
+
+    this.turn = 'human';
+    this.aiThinkingStartTime = null;
+    if (source === 'rule') {
+      this.hud.setHumanTurn(`战术必应着法 · ${key}`);
+    } else if (source === 'fallback') {
+      this.hud.setHumanTurn('Jev 暂时不可用 · 本地兜底着法');
+    } else if (typeof confidence === 'number' && confidence > 0) {
+      this.hud.setHumanTurn(`Jev: ${key} (${confidence.toFixed(2)})`);
+    } else {
+      this.hud.setHumanTurn(`Jev: ${key}`);
+    }
+    this.refreshUndoEnabled();
+    this.publishDiagnostics(true);
   }
 
   private findWinningLine(row: number, col: number, color: Cell): GridIntersection[] {

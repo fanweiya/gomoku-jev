@@ -20,6 +20,17 @@
   -webkit-font-smoothing: antialiased;
 }
 
+body[data-theme="light"] {
+  --color-bg: #ece7dc;
+  --color-text-main: #24201c;
+  --color-text-muted: rgba(36, 32, 28, 0.68);
+  --color-gold: #b37e1a;
+  --color-cyan: #267a6d;
+  --color-card-bg: rgba(255, 253, 247, 0.92);
+  --color-card-border: rgba(36, 32, 28, 0.18);
+  --color-card-border-active: #b37e1a;
+}
+
 * {
   box-sizing: border-box;
 }

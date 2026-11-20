@@ -1,0 +1,54 @@
+import { describe, expect, it } from 'vitest';
+
+import { ALLOWED_UPSTREAM_HOSTS, FORBIDDEN_HEADERS, isAllowedUpstream } from '../functions/api/upstream-allowlist';
+import { PROVIDER_PRESETS } from '../src/game/AiConfig';
+
+// 代理转发规则的安全边界：服务端密钥只允许流向预设上游，
+// 客户端自定义请求头不允许覆盖鉴权与逐跳头。
+describe('isAllowedUpstream', () => {
+  it('accepts every non-custom provider preset endpoint', () => {
+    const presets = PROVIDER_PRESETS.filter((p) => p.endpoint !== '');
+    expect(presets.length).toBeGreaterThan(0);
+    for (const preset of presets) {
+      expect(isAllowedUpstream(preset.endpoint)).toBe(true);
+    }
+  });
+
+  it('rejects arbitrary hosts, insecure schemes and malformed urls', () => {
+    const rejected = [
+      'https://attacker.example/v1/systemone',
+      'http://api.typesafe.ai/v1/systemone',
+      'https://api.typesafe.ai.evil.com/v1/systemone',
+      'https://evil.com/?next=https://api.typesafe.ai/',
+      'https://169.254.169.254/latest/meta-data/',
+      'file:///etc/passwd',
+      'not a url',
+      '',
+    ];
+    for (const endpoint of rejected) {
+      expect(isAllowedUpstream(endpoint)).toBe(false);
+    }
+  });
+});
+
+describe('FORBIDDEN_HEADERS', () => {
+  it('blocks auth, hop-by-hop and cookie headers case-insensitively', () => {
+    for (const name of ['Authorization', 'authorization', 'HOST', 'Content-Type', 'Cookie', 'Transfer-Encoding']) {
+      expect(FORBIDDEN_HEADERS.has(name.toLowerCase())).toBe(true);
+    }
+  });
+
+  it('keeps provider-specific headers usable', () => {
+    for (const name of ['TypeSafe-Danger-Zone-Images', 'X-API-Key', 'User-Agent']) {
+      expect(FORBIDDEN_HEADERS.has(name.toLowerCase())).toBe(false);
+    }
+  });
+
+  it('lists hostnames as bare hosts without scheme or port', () => {
+    for (const host of ALLOWED_UPSTREAM_HOSTS) {
+      expect(host).not.toContain('://');
+      expect(host).not.toContain('/');
+      expect(host).not.toContain(':');
+    }
+  });
+});

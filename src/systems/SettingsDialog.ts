@@ -153,6 +153,9 @@ export class SettingsDialog {
       return;
     }
 
+    // 切换通道时清空密钥输入框，避免旧通道的密钥被发往新的上游地址
+    this.keyInput.value = '';
+
     if (preset.id !== 'custom') {
       this.endpointInput.value = preset.endpoint;
       this.modelInput.value = preset.defaultModel;

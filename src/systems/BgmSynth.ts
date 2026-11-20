@@ -7,8 +7,19 @@ export class AncientBgmSynth {
   private isPlaying = false;
   private timerId: number | null = null;
   private masterGain: GainNode | null = null;
+  private droneOscillators: OscillatorNode[] = [];
   private volume = 0.38;
   private fadeInterval: number | null = null;
+
+  // 自动播放策略要求首次播放必须由用户手势触发；恢复开启状态时
+  // 先尝试播放，被拦截后在首次手势到来时重试一次。
+  private readonly onFirstGesture = (): void => {
+    window.removeEventListener('pointerdown', this.onFirstGesture);
+    window.removeEventListener('keydown', this.onFirstGesture);
+    if (this.isPlaying) {
+      this.start();
+    }
+  };
 
   // Traditional Pentatonic scale for fallback synthesis: Gong, Shang, Jiao, Zhi, Yu
   private readonly scale: number[] = [
@@ -20,6 +31,11 @@ export class AncientBgmSynth {
     const saved = localStorage.getItem('gomoku_bgm_enabled');
     this.isPlaying = saved === 'true';
     this.initAudioElement();
+    if (this.isPlaying) {
+      this.start();
+      window.addEventListener('pointerdown', this.onFirstGesture);
+      window.addEventListener('keydown', this.onFirstGesture);
+    }
   }
 
   private initAudioElement(): void {
@@ -27,7 +43,8 @@ export class AncientBgmSynth {
     this.audioElement = new Audio('/audio/gaoshan_liushui.mp3');
     this.audioElement.loop = true;
     this.audioElement.volume = this.volume;
-    this.audioElement.preload = 'auto';
+    // 延迟到实际播放时才加载音频文件，避免页面打开就下载 2.6MB 资源
+    this.audioElement.preload = 'none';
 
     this.audioElement.addEventListener('error', () => {
       // If audio file fails to load, gracefully fallback to web audio synth
@@ -53,6 +70,11 @@ export class AncientBgmSynth {
 
   public start(): void {
     this.isPlaying = true;
+
+    // AudioContext 可能因自动播放策略处于 suspended，手势重试时恢复
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
 
     if (this.audioElement) {
       this.stopFade();
@@ -81,6 +103,25 @@ export class AncientBgmSynth {
       this.fadeOutAudio();
     }
     this.stopFallbackSynth();
+  }
+
+  public dispose(): void {
+    window.removeEventListener('pointerdown', this.onFirstGesture);
+    window.removeEventListener('keydown', this.onFirstGesture);
+    this.stop();
+    this.stopFade();
+    if (this.audioElement) {
+      this.audioElement.pause();
+      this.audioElement.removeAttribute('src');
+      this.audioElement.load();
+      this.audioElement = null;
+    }
+    if (this.ctx) {
+      void this.ctx.close();
+      this.ctx = null;
+    }
+    this.masterGain = null;
+    this.droneOscillators = [];
   }
 
   private fadeInAudio(): void {
@@ -147,6 +188,12 @@ export class AncientBgmSynth {
       this.ctx.resume();
     }
 
+    // 上一次停止时的增益节点可能仍在淡出，先断开再重建，避免节点累积
+    if (this.masterGain) {
+      this.masterGain.disconnect();
+      this.masterGain = null;
+    }
+
     this.masterGain = this.ctx.createGain();
     this.masterGain.gain.setValueAtTime(this.volume, this.ctx.currentTime);
     this.masterGain.connect(this.ctx.destination);
@@ -160,9 +207,19 @@ export class AncientBgmSynth {
       window.clearTimeout(this.timerId);
       this.timerId = null;
     }
-    if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.4);
+    // 逐个停止长音振荡器，避免 stop→start 循环累积永不停止的声源
+    for (const osc of this.droneOscillators) {
+      osc.stop();
+    }
+    this.droneOscillators = [];
+    const gain = this.masterGain;
+    if (gain && this.ctx) {
+      gain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.4);
       setTimeout(() => {
+        gain.disconnect();
+        if (this.masterGain === gain) {
+          this.masterGain = null;
+        }
         if (!this.isPlaying && this.ctx) {
           this.ctx.suspend();
         }
@@ -192,6 +249,7 @@ export class AncientBgmSynth {
       gain.connect(this.masterGain);
 
       osc.start();
+      this.droneOscillators.push(osc);
     }
   }
 

@@ -34,7 +34,7 @@ describe("chooseAiMove", () => {
     expect(url).toBe('/api/jev');
     expect(init.method).toBe('POST');
     const payload = JSON.parse(init.body);
-    expect(payload.model).toBe('jev-latest');
+    expect(payload.model).toBe('jev-preview');
     expect(payload.questions.next_move.criteria).toEqual({ H8: 'center point', I8: 'side point' });
     expect(payload.state.candidate_keys).toEqual(['H8', 'I8']);
     expect(choice).toMatchObject({ row: 7, col: 8, key: 'I8', confidence: 0.42, source: 'jev' });

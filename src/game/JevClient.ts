@@ -1,4 +1,5 @@
-import { loadAiConfig } from './AiConfig';
+import { loadAiConfig, PROVIDER_PRESETS } from './AiConfig';
+import { createBoard, formatBoardWithCoordinates, cellKey } from './GomokuCore';
 
 export interface MoveChoice {
   row: number;
@@ -63,7 +64,7 @@ export async function chooseAiMove(
       : '五子棋对局：AI执白棋后手，人类玩家执黑棋先手刚完成下子';
 
     const payload = {
-      model: config.model || 'jev-latest',
+      model: config.model || PROVIDER_PRESETS[0].defaultModel,
       state: {
         board_size: 15,
         board: boardString,
@@ -153,20 +154,23 @@ export async function testAiConnection(config: {
   }, 10000);
 
   try {
+    // 测试 payload 与真实对局使用同一套棋盘文本与坐标 key 格式，
+    // 避免上游模型按错误格式回答导致测试结论失真。
+    const testKey = cellKey(7, 8);
     const payload = {
-      model: config.model || 'jev-latest',
+      model: config.model || PROVIDER_PRESETS[0].defaultModel,
       state: {
         board_size: 15,
-        board: '0,0,0,0,0,0,0,0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,1,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0,0,0,0,0,0,0,0;0,0,0,0,0,0,0,0,0,0,0,0,0,0,0',
+        board: formatBoardWithCoordinates(createBoard()),
         description: '五子棋测试连通性',
-        candidate_keys: ['7,8'],
-        candidates: [{ row: 7, col: 8, key: '7,8', description: '测试位置' }],
+        candidate_keys: [testKey],
+        candidates: [{ row: 7, col: 8, key: testKey, description: '测试位置' }],
       },
       questions: {
         next_move: {
           type: 'choice',
           instructions: '测试连接',
-          criteria: { '7,8': '测试位置' },
+          criteria: { [testKey]: '测试位置' },
         },
       },
     };

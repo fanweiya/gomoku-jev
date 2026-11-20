@@ -118,8 +118,11 @@ export class Game {
     this.controls.addEventListener('start', () => { this.userMovedCamera = true; });
     window.addEventListener('resize', this.onWindowResize);
 
+    // reducedMotion 优先级：localStorage 用户手动覆盖 > 系统 prefers-reduced-motion
     const userReducedPref = localStorage.getItem('gomoku_reduced_motion');
-    this.reducedMotion = userReducedPref === 'true';
+    this.reducedMotion = userReducedPref !== null
+      ? userReducedPref === 'true'
+      : this.reducedMotionQuery.matches;
     this.reducedMotionQuery.addEventListener('change', this.onReducedMotionChange);
 
     this.createScene();
@@ -166,7 +169,9 @@ export class Game {
   }
 
   private readonly onReducedMotionChange = (event: MediaQueryListEvent): void => {
-    this.reducedMotion = event.matches;
+    // 存在 localStorage 手动覆盖时，系统偏好变化不生效
+    const userReducedPref = localStorage.getItem('gomoku_reduced_motion');
+    this.reducedMotion = userReducedPref !== null ? userReducedPref === 'true' : event.matches;
   };
 
   start(): void {
@@ -181,6 +186,7 @@ export class Game {
     window.removeEventListener('resize', this.onWindowResize);
     this.hud.dispose();
     this.settingsDialog.dispose();
+    this.bgmSynth.dispose();
     this.boardView.dispose();
     // 释放 createScene() 中直接挂在 scene 上的 table/灯光（boardView 已自行释放，重复 dispose 安全）
     disposeObject3D(this.scene);

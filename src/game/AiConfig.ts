@@ -112,7 +112,7 @@ export function getDefaultAiConfig(): UserAiConfig {
     providerName: p.name,
     shortName: p.shortName,
     endpoint: p.endpoint,
-    model: 'jev-latest',
+    model: p.defaultModel,
     apiKey: '',
     customHeaders: { ...p.customHeaders },
   };
@@ -130,7 +130,7 @@ export function loadAiConfig(): UserAiConfig {
       providerName: parsed.providerName || 'TypeSafe Jev',
       shortName: parsed.shortName || 'TypeSafe',
       endpoint: parsed.endpoint || 'https://api.typesafe.ai/v1/systemone',
-      model: parsed.model || 'jev-latest',
+      model: parsed.model || PROVIDER_PRESETS[0].defaultModel,
       apiKey: parsed.apiKey || '',
       customHeaders: parsed.customHeaders || {},
     };

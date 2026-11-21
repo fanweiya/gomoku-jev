@@ -130,6 +130,11 @@ export class AncientBgmSynth {
 
   private fadeInAudio(): void {
     if (!this.audioElement) return;
+    // 两次 play() promise 同时结算时会调两次本函数；入口先清掉旧
+    // interval，保证同一时刻只有一个淡入 interval，否则先建的 interval
+    // 到期时清掉的是后一个的句柄，自己永远空转并把音量钉回旧目标，
+    // 之后 stop() 的淡出也会被它清掉、audio 永远不 pause。
+    this.stopFade();
     let curVol = 0;
     const targetVol = this.volume;
     const step = targetVol / 16;
@@ -146,6 +151,9 @@ export class AncientBgmSynth {
 
   private fadeOutAudio(): void {
     if (!this.audioElement) return;
+    // 与 fadeInAudio 同类问题：入口先清旧 interval，防止覆盖掉正在跑
+    // 的淡入 interval 句柄、使其泄漏空转。
+    this.stopFade();
     let curVol = this.audioElement.volume;
     const step = curVol / 12;
     this.fadeInterval = window.setInterval(() => {

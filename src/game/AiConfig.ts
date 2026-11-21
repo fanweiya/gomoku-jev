@@ -105,6 +105,10 @@ export interface UserAiConfig {
 
 const STORAGE_KEY = 'gomoku_jev_ai_config';
 
+export function getPresetById(id: string): ProviderPreset {
+  return PROVIDER_PRESETS.find((p) => p.id === id) || PROVIDER_PRESETS[0];
+}
+
 export function getDefaultAiConfig(): UserAiConfig {
   const p = PROVIDER_PRESETS[0];
   return {
@@ -125,12 +129,16 @@ export function loadAiConfig(): UserAiConfig {
       return getDefaultAiConfig();
     }
     const parsed = JSON.parse(raw);
+    // 兜底按 providerId 查对应 preset，不再一律用 typesafe 的值；
+    // custom 的 defaultModel/endpoint 为空，空值保持为空，由调用方
+    // 报错，不再静默替换为 jev-preview / typesafe 地址。
+    const preset = getPresetById(parsed.providerId || 'typesafe');
     return {
-      providerId: parsed.providerId || 'typesafe',
-      providerName: parsed.providerName || 'TypeSafe Jev',
-      shortName: parsed.shortName || 'TypeSafe',
-      endpoint: parsed.endpoint || 'https://api.typesafe.ai/v1/systemone',
-      model: parsed.model || PROVIDER_PRESETS[0].defaultModel,
+      providerId: preset.id,
+      providerName: parsed.providerName || preset.name,
+      shortName: parsed.shortName || preset.shortName,
+      endpoint: parsed.endpoint || preset.endpoint,
+      model: parsed.model || preset.defaultModel,
       apiKey: parsed.apiKey || '',
       customHeaders: parsed.customHeaders || {},
     };

@@ -2,7 +2,7 @@ import { defineConfig, loadEnv } from 'vite';
 import type { Plugin, Connect } from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Buffer } from 'node:buffer';
-import { FORBIDDEN_HEADERS, isAllowedUpstream } from './functions/api/upstream-allowlist';
+import { FORBIDDEN_HEADERS, allowsServerKey, isAllowedUpstream } from './functions/api/upstream-allowlist';
 
 function jevProxyPlugin(mode: string): Plugin {
   const handler: Connect.NextHandleFunction = (req: IncomingMessage, res: ServerResponse, next: Connect.NextFunction) => {
@@ -48,17 +48,11 @@ function jevProxyPlugin(mode: string): Plugin {
         targetUrl = clientEndpoint;
       }
 
-      // 服务端密钥只允许用于 Cloudflare Clef 通道（api.cloudflare.com），
+      // 服务端密钥只允许用于上面那条完整 Clef endpoint，
       // 其余上游必须由客户端自带密钥，避免本地环境变量被转发到任意白名单地址。
       let apiKey = clientApiKey || '';
-      if (!apiKey) {
-        try {
-          if (new URL(targetUrl).hostname === 'api.cloudflare.com') {
-            apiKey = env.CF_CLEF_API_KEY || process.env.CF_CLEF_API_KEY || '';
-          }
-        } catch {
-          // targetUrl 已通过 isAllowedUpstream 校验，不会走到这里
-        }
+      if (!apiKey && allowsServerKey(targetUrl)) {
+        apiKey = env.CF_CLEF_API_KEY || process.env.CF_CLEF_API_KEY || '';
       }
 
       if (!apiKey) {

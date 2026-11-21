@@ -169,6 +169,11 @@ export class SettingsDialog {
         this.setStatus(preset.notes, 'info');
       }
     } else {
+      // 切到自定义通道同样清空旧通道残留：endpoint/model/自定义头
+      // 三个输入框都不保留旧值，避免旧通道配置被发往新地址。
+      this.endpointInput.value = '';
+      this.modelInput.value = '';
+      this.headersInput.value = '';
       this.updateModelOptions([]);
       this.updateWebsiteLink(undefined);
       this.setStatus('自定义通道：可自主输入接口地址、模型与密钥。', 'info');

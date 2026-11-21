@@ -83,6 +83,10 @@ export class AncientBgmSynth {
       if (playPromise !== undefined) {
         playPromise
           .then(() => {
+            // stop() 之后才结算的不要再淡入；mp3 播放成功时先停掉
+            // 之前兜底启动的合成器，避免 mp3 与合成双声道叠加。
+            if (!this.isPlaying) return;
+            this.stopFallbackSynth();
             this.fadeInAudio();
           })
           .catch(() => {

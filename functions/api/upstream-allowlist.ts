@@ -39,3 +39,16 @@ export function isAllowedUpstream(endpoint: string): boolean {
   }
   return ALLOWED_UPSTREAM_HOSTS.includes(url.hostname);
 }
+
+// 服务端密钥（CF_CLEF_API_KEY）仅允许发往这一条完整地址，
+// 即 AiConfig 里公开的 Cloudflare Clef 通道。只按 hostname 判定
+// 会让 api.cloudflare.com 上任意路径（如他人账号的 Workers AI 地址）
+// 都拿到服务端密钥，故此处必须按完整 endpoint 精确匹配。
+// 账号/模型变更时须同步改这里与 AiConfig 的 cf-clef preset。
+export const SERVER_KEY_ENDPOINTS: readonly string[] = [
+  'https://api.cloudflare.com/client/v4/accounts/b9b1998c78f49ed2e0db3ab8e868ff85/ai/run/@cf/cloudflare/clef-flash',
+];
+
+export function allowsServerKey(endpoint: string): boolean {
+  return SERVER_KEY_ENDPOINTS.includes(endpoint);
+}

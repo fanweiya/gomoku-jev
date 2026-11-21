@@ -1,4 +1,4 @@
-import { loadAiConfig, PROVIDER_PRESETS } from './AiConfig';
+import { loadAiConfig } from './AiConfig';
 import { createBoard, formatBoardWithCoordinates, cellKey } from './GomokuCore';
 
 export interface MoveChoice {
@@ -51,6 +51,12 @@ export async function chooseAiMove(
   try {
     const config = loadAiConfig();
 
+    // 空模型不再静默替换为 jev-preview：custom 未填模型时直接报错，
+    // 由外层 catch 降级为本地启发式，不发出用错模型的请求。
+    if (!config.model) {
+      throw new Error('模型名称为空：自定义通道请在设置中填写模型。');
+    }
+
     const criteria: Record<string, string> = {};
     for (const item of candidates) {
       criteria[item.key] = item.description || item.key;
@@ -64,7 +70,7 @@ export async function chooseAiMove(
       : '五子棋对局：AI执白棋后手，人类玩家执黑棋先手刚完成下子';
 
     const payload = {
-      model: config.model || PROVIDER_PRESETS[0].defaultModel,
+      model: config.model,
       state: {
         board_size: 15,
         board: boardString,
@@ -154,11 +160,15 @@ export async function testAiConnection(config: {
   }, 10000);
 
   try {
+    // 测试连接同样不做静默替换：空模型直接报不通过，不发请求。
+    if (!config.model) {
+      return { ok: false, message: '模型名称不能为空：自定义通道请在设置中填写模型。' };
+    }
     // 测试 payload 与真实对局使用同一套棋盘文本与坐标 key 格式，
     // 避免上游模型按错误格式回答导致测试结论失真。
     const testKey = cellKey(7, 8);
     const payload = {
-      model: config.model || PROVIDER_PRESETS[0].defaultModel,
+      model: config.model,
       state: {
         board_size: 15,
         board: formatBoardWithCoordinates(createBoard()),

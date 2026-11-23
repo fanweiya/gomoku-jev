@@ -7,3 +7,6 @@ artifacts/
 *.local
 .env.local
 bun.lock
+
+# wrangler 本地状态
+.wrangler/

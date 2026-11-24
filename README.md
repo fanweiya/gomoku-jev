@@ -20,7 +20,7 @@
   6. **Nace AI**：接口 `https://console.nace.ai/v1/systemone`，默认模型 `nace-latest`（控制台：[https://console.nace.ai](https://console.nace.ai)）
   7. **自定义通道 (Custom)**：可自主配置任意兼容接口、模型名称与请求密钥
 - 🧪 **连接测试**：设置界面提供一键「测试连接」功能，实时验证接口连通性与模型可用状态。
-- 🔒 **本地私密存储**：玩家填写的配置与密钥仅保存在当前浏览器的本地存储中。服务端仅在可选配置了环境变量 `CF_CLEF_API_KEY` 时持有一份密钥，且代理只允许将它发往 `api.cloudflare.com`（Cloudflare Workers AI Clef 通道），不会转发到其他上游。
+- 🔒 **本地私密存储**：玩家填写的配置与密钥仅保存在当前浏览器的本地存储中。服务端仅在可选配置了环境变量 `CF_CLEF_API_KEY` 时持有一份密钥，且代理只允许将它发往 `SERVER_KEY_ENDPOINTS` 中列出的完整 Clef endpoint（Cloudflare Workers AI Clef 通道），不会转发到其他上游。
 - 🎮 **完整对局**：15×15 标准五子棋规则，连五获胜，满盘和棋。
 - 🧠 **双层判定**：启发式算法生成候选位置（分级打分）+ 模型选择最佳点，状态栏实时显示下子位置与置信度。
 - 🏺 **动态棋罐**：棋盘左右各一只木碗，下子时棋子从罐内沿弧线飞出，存量随对局递减，重开自动补满。
@@ -59,7 +59,7 @@ npx wrangler pages deploy dist --project-name gomoku-jev
 
 ### 可选的服务端密钥
 
-`/api/jev` 代理默认要求客户端在 `x-jev-api-key` 请求头中自带上游密钥，服务端不保留通用密钥。唯一例外是 Cloudflare Workers AI Clef 通道：当客户端未提供密钥时，代理回退到 Pages 项目的环境变量 `CF_CLEF_API_KEY`，且该变量只允许发往 `api.cloudflare.com`。
+`/api/jev` 代理默认要求客户端在 `x-jev-api-key` 请求头中自带上游密钥，服务端不保留通用密钥。唯一例外是 Cloudflare Workers AI Clef 通道：当客户端未提供密钥时，代理回退到 Pages 项目的环境变量 `CF_CLEF_API_KEY`，且该变量只允许发往 `SERVER_KEY_ENDPOINTS` 中列出的完整 Clef endpoint。
 
 - 在 Cloudflare Pages 项目 **Settings → Variables and Secrets** 中添加 `CF_CLEF_API_KEY`（Cloudflare API Token，权限要求：Workers AI 只读/推理权限即可）。
 - 本地开发时在项目根目录 `.env` 中写入同名变量，Vite 开发代理会自动加载。

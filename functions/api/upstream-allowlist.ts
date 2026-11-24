@@ -1,5 +1,5 @@
 // 代理只允许转发到预设通道的上游地址。自定义通道的请求必须自带 API 密钥；
-// 服务端环境变量密钥（CF_CLEF_API_KEY）只允许发往 api.cloudflare.com。
+// 服务端环境变量密钥（CF_CLEF_API_KEY）只允许发往 SERVER_KEY_ENDPOINTS 中列出的完整 Clef endpoint。
 export const ALLOWED_UPSTREAM_HOSTS: readonly string[] = [
   'api.typesafe.ai',
   'api.subq.ai',

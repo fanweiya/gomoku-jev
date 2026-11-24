@@ -91,6 +91,9 @@ export class AncientBgmSynth {
           })
           .catch(() => {
             // Autoplay blocked or decode failed -> trigger fallback synth
+            // stop() 之后才拒绝的不要再启动兜底合成器，避免 BGM 已关
+            // 却仍有 drone 发声（与 .then() 分支的守卫对称）。
+            if (!this.isPlaying) return;
             this.startFallbackSynth();
           });
       }
@@ -189,6 +192,9 @@ export class AncientBgmSynth {
 
   // --- Fallback Web Audio Synthesizer ---
   private startFallbackSynth(): void {
+    // BGM 已关时不启动兜底合成器：被 pause 中断的 play() 会以
+    // AbortError 拒绝，.catch() 兜底路径也必须受同一守卫约束。
+    if (!this.isPlaying) return;
     if (this.ctx && this.timerId !== null) return;
 
     if (!this.ctx) {
